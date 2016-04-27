@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 
-# Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -115,7 +115,7 @@ if __name__ == '__main__':
                       help='Offset for address space layout randomization')
     parser.add_option('', '--page-offset', type='int',
                       dest='page_offset', help='use custom page offset')
-    parser.add_option('', '--force-hardware', type='int',
+    parser.add_option('', '--force-hardware',
                       dest='force_hardware', help='Force the hardware detection')
     parser.add_option(
         '', '--force-version', type='int', dest='force_hardware_version',
