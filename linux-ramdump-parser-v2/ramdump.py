@@ -44,6 +44,82 @@ first_mem_file_names = ['EBICS0.BIN',
                         'EBI1.BIN', 'DDRCS0.BIN', 'ebi1_cs0.bin', 'DDRCS0_0.BIN']
 extra_mem_file_names = ['EBI1CS1.BIN', 'DDRCS1.BIN', 'ebi1_cs1.bin', 'DDRCS0_1.BIN', 'DDRCS1_0.BIN', 'DDRCS1_1.BIN']
 
+DDR_FILE_NAMES = ['DDRCS0.BIN', 'DDRCS1.BIN', 'DDRCS0_0.BIN',
+                  'DDRCS1_0.BIN', 'DDRCS0_1.BIN', 'DDRCS1_1.BIN']
+OTHER_DUMP_FILE_NAMES = ['PIMEM.BIN', 'OCIMEM.BIN']
+RAM_FILE_NAMES = set(DDR_FILE_NAMES +
+                     OTHER_DUMP_FILE_NAMES +
+                     first_mem_file_names +
+                     extra_mem_file_names)
+
+
+class AutoDumpInfo(object):
+    priority = 0
+
+    def __init__(self, autodumpdir):
+        self.autodumpdir = autodumpdir
+        self.ebi_files = []
+
+    def parse(self):
+        for (filename, base_addr) in self._parse():
+            fullpath = os.path.join(self.autodumpdir, filename)
+            end = base_addr + os.path.getsize(fullpath) - 1
+            self.ebi_files.append((open(fullpath), base_addr, end, filename))
+            # sort by addr, DDR files first. The goal is for
+            # self.ebi_files[0] to be the DDR file with the lowest address.
+            self.ebi_files.sort(key=lambda x: (x[-1] not in DDR_FILE_NAMES,
+                                               x[1]))
+
+    def _parse(self):
+        # Implementations should return an interable of (filename, base_addr)
+        raise NotImplementedError
+
+
+class AutoDumpInfoCMM(AutoDumpInfo):
+    # Parses CMM scripts (like load.cmm)
+    def _parse(self):
+        filename = 'load.cmm'
+        if not os.path.exists(os.path.join(self.autodumpdir, filename)):
+            print_out_str('!!! AutoParse could not find load.cmm!')
+            return
+
+        with open(os.path.join(self.autodumpdir, filename)) as f:
+            for line in f.readlines():
+                words = line.split()
+                if len(words) == 4 and words[1] in RAM_FILE_NAMES:
+                    fname = words[1]
+                    start = int(words[2], 16)
+                    yield fname, start
+
+
+class AutoDumpInfoDumpInfoTXT(AutoDumpInfo):
+    # Parses dump_info.txt
+    priority = 1
+
+    def _parse(self):
+        filename = 'dump_info.txt'
+        if not os.path.exists(os.path.join(self.autodumpdir, filename)):
+            print_out_str('!!! AutoParse could not find dump_info.txt!')
+            return
+
+        with open(os.path.join(self.autodumpdir, filename)) as f:
+            for line in f.readlines():
+                words = line.split()
+                if not words or words[-1] not in RAM_FILE_NAMES:
+                    continue
+                fname = words[-1]
+                start = int(words[1], 16)
+                size = int(words[2])
+                filesize = os.path.getsize(
+                    os.path.join(self.autodumpdir, fname))
+                if size != filesize:
+                    print_out_str(
+                        ("!!! Size of %s on disk (%d) doesn't match size " +
+                         "from dump_info.txt (%d). Skipping...")
+                        % (fname, filesize, size))
+                    continue
+                yield fname, start
+
 
 class RamDump():
     """The main interface to the RAM dump"""
@@ -666,79 +742,21 @@ class RamDump():
             print_out_str('!!! Could not lookup saved command line address')
             return False
 
-    def get_ddr_base_addr(self, file_path):
-        if os.path.exists(os.path.join(file_path, 'load.cmm')):
-            with open (os.path.join(file_path, 'load.cmm'), "r") as myfile:
-                for line in myfile.readlines():
-                    words = line.split()
-                    if words[0] == "d.load.binary" and words[1].startswith("DDRCS"):
-                        if words[2][0:2].lower() == '0x':
-                            return int(words[2], 16)
-        elif os.path.exists(os.path.join(file_path, 'dump_info.txt')):
-            with open (os.path.join(file_path, 'dump_info.txt'), "r") as myfile:
-                for line in myfile.readlines():
-                    words = line.split()
-                    if words[-1].startswith("DDRCS"):
-                        if words[1][0:2].lower() == '0x':
-                            return int(words[1], 16)
-
     def auto_parse(self, file_path):
-        first_mem_path = None
-
-        for f in first_mem_file_names:
-            test_path = file_path + '/' + f
-            if os.path.exists(test_path):
-                first_mem_path = test_path
-                break
-
-        if first_mem_path is None:
-            print_out_str('!!! Could not open a memory file. I give up')
-            sys.exit(1)
-
-        first_mem = open(first_mem_path, 'rb')
-        # put some dummy data in for now
-        self.ebi_files = [(first_mem, 0, 0xffff0000, first_mem_path)]
-        if not self.get_hw_id(add_offset=False):
-            return False
-
-        base_addr = self.get_ddr_base_addr(file_path)
-        if base_addr is not None:
-            self.ebi_start = base_addr
-            self.phys_offset = base_addr
-        else:
-            print_out_str('!!! WARNING !!! Using Static DDR Base Addresses.')
-
-        first_mem_end = self.ebi_start + os.path.getsize(first_mem_path) - 1
-        self.ebi_files = [
-            (first_mem, self.ebi_start, first_mem_end, first_mem_path)]
-        print_out_str(
-            'Adding {0} {1:x}--{2:x}'.format(first_mem_path, self.ebi_start, first_mem_end))
-        self.ebi_start = self.ebi_start + os.path.getsize(first_mem_path)
-
-        for f in extra_mem_file_names:
-            extra_path = file_path + '/' + f
-
-            if os.path.exists(extra_path):
-                extra = open(extra_path, 'rb')
-                extra_start = self.ebi_start
-                extra_end = extra_start + os.path.getsize(extra_path) - 1
-                self.ebi_start = extra_end + 1
-                print_out_str(
-                    'Adding {0} {1:x}--{2:x}'.format(extra_path, extra_start, extra_end))
-                self.ebi_files.append(
-                    (extra, extra_start, extra_end, extra_path))
-
-        if self.imem_fname is not None:
-            imemc_path = file_path + '/' + self.imem_fname
-            if os.path.exists(imemc_path):
-                imemc = open(imemc_path, 'rb')
-                imemc_start = self.tz_start
-                imemc_end = imemc_start + os.path.getsize(imemc_path) - 1
-                print_out_str(
-                    'Adding {0} {1:x}--{2:x}'.format(imemc_path, imemc_start, imemc_end))
-                self.ebi_files.append(
-                    (imemc, imemc_start, imemc_end, imemc_path))
-        return True
+        for cls in sorted(AutoDumpInfo.__subclasses__(),
+                          key=lambda x: x.priority, reverse=True):
+            info = cls(file_path)
+            info.parse()
+            if info is not None and len(info.ebi_files) > 0:
+                self.ebi_files = info.ebi_files
+                self.phys_offset = self.ebi_files[0][1]
+                if self.get_hw_id():
+                    for (f, start, end, filename) in self.ebi_files:
+                        print_out_str('Adding {0} {1:x}--{2:x}'.format(
+                            filename, start, end))
+                        return True
+        self.ebi_files = None
+        return False
 
     def create_t32_launcher(self):
         out_path = self.outdir
@@ -975,7 +993,8 @@ class RamDump():
         if board.wdog_addr is not None:
             print_out_str(
             'TZ address: {0:x}'.format(board.wdog_addr))
-        self.phys_offset = board.phys_offset
+        if self.phys_offset is None:
+            self.phys_offset = board.phys_offset
         self.tz_addr = board.wdog_addr
         self.ebi_start = board.ram_start
         self.tz_start = board.imem_start
