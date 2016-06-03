@@ -27,15 +27,15 @@ class Board(object):
 
     """
     def __init__(self):
-         self.socid = -1
-         self.board_num = -1
-         self.cpu = 'UNKNOWN'
-         self.ram_start = 0
-         self.imem_start = 0
-         self.smem_addr = 0
-         self.phys_offset = 0
-         self.wdog_addr = 0
-         self.imem_file_name = None
+        self.socid = -1
+        self.board_num = -1
+        self.cpu = 'UNKNOWN'
+        self.ram_start = 0
+        self.imem_start = 0
+        self.smem_addr = 0
+        self.phys_offset = 0
+        self.wdog_addr = 0
+        self.imem_file_name = None
 
 class Board8960(Board):
     def __init__(self, socid, board_num, phys_offset=0x80200000, ram_start=0x80000000):
