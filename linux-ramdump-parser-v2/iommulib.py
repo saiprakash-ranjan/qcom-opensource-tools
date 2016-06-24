@@ -96,18 +96,22 @@ class IommuLib(object):
             pgtbl_ops_ptr = self.ramdump.read_structure_field(
                 arm_smmu_domain_ptr, 'struct arm_smmu_domain', 'pgtbl_ops')
 
-            io_pgtable_ptr = self.ramdump.container_of(
-                pgtbl_ops_ptr, 'struct io_pgtable', 'ops')
+            pg_table = 0
+            level = 0
+            if pgtbl_ops_ptr != 0:
+                io_pgtable_ptr = self.ramdump.container_of(
+                    pgtbl_ops_ptr, 'struct io_pgtable', 'ops')
 
-            arm_lpae_io_pgtable_ptr = self.ramdump.container_of(
-                io_pgtable_ptr, 'struct arm_lpae_io_pgtable', 'iop')
+                arm_lpae_io_pgtable_ptr = self.ramdump.container_of(
+                    io_pgtable_ptr, 'struct arm_lpae_io_pgtable', 'iop')
 
-            pg_table = self.ramdump.read_structure_field(
-                arm_lpae_io_pgtable_ptr, 'struct arm_lpae_io_pgtable', 'pgd')
+                pg_table = self.ramdump.read_structure_field(
+                    arm_lpae_io_pgtable_ptr, 'struct arm_lpae_io_pgtable',
+                    'pgd')
 
-            level = self.ramdump.read_structure_field(
-                arm_lpae_io_pgtable_ptr, 'struct arm_lpae_io_pgtable',
-                'levels')
+                level = self.ramdump.read_structure_field(
+                    arm_lpae_io_pgtable_ptr, 'struct arm_lpae_io_pgtable',
+                    'levels')
 
             domain_create = Domain(pg_table, 0, [], client_name,
                                    ARM_SMMU_DOMAIN, level)
