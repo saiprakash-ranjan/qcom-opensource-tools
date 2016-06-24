@@ -59,11 +59,19 @@ class IommuLib(object):
     def _iommu_domain_find_default(self, node, domain_list):
         domain_ptr = self.ramdump.read_structure_field(
             node, 'struct iommu_debug_attachment', 'domain')
-        priv_ptr = self.ramdump.read_structure_field(
-            domain_ptr, 'struct iommu_domain', 'priv')
 
-        if not (domain_ptr and priv_ptr):
+        if not domain_ptr:
             return
+
+        if self.ramdump.field_offset('struct iommu_domain', 'priv') \
+                is not None:
+            priv_ptr = self.ramdump.read_structure_field(
+                domain_ptr, 'struct iommu_domain', 'priv')
+
+            if not priv_ptr:
+                return
+        else:
+            priv_ptr = None
 
         arm_smmu_ops = self.ramdump.address_of('arm_smmu_ops')
 
@@ -79,8 +87,14 @@ class IommuLib(object):
             domain_ptr, 'struct iommu_domain', 'ops')
 
         if iommu_domain_ops == arm_smmu_ops:
+            if priv_ptr is not None:
+                arm_smmu_domain_ptr = priv_ptr
+            else:
+                arm_smmu_domain_ptr = self.ramdump.container_of(
+                    domain_ptr, 'struct arm_smmu_domain', 'domain')
+
             pgtbl_ops_ptr = self.ramdump.read_structure_field(
-                priv_ptr, 'struct arm_smmu_domain', 'pgtbl_ops')
+                arm_smmu_domain_ptr, 'struct arm_smmu_domain', 'pgtbl_ops')
 
             io_pgtable_ptr = self.ramdump.container_of(
                 pgtbl_ops_ptr, 'struct io_pgtable', 'ops')
