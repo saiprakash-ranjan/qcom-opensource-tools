@@ -42,7 +42,10 @@ BUILD_ID_LENGTH = 32
 
 first_mem_file_names = ['EBICS0.BIN',
                         'EBI1.BIN', 'DDRCS0.BIN', 'ebi1_cs0.bin', 'DDRCS0_0.BIN']
-extra_mem_file_names = ['EBI1CS1.BIN', 'DDRCS1.BIN', 'ebi1_cs1.bin', 'DDRCS0_1.BIN', 'DDRCS1_0.BIN', 'DDRCS1_1.BIN']
+extra_mem_file_names = ['EBI1CS1.BIN', 'DDRCS1.BIN', 'ebi1_cs1.bin',
+                        'DDRCS0_1.BIN', 'DDRCS1_0.BIN', 'DDRCS1_1.BIN',
+                        'DDRCS1_2.BIN', 'DDRCS1_3.BIN', 'DDRCS1_4.BIN',
+                        'DDRCS1_5.BIN']
 
 DDR_FILE_NAMES = ['DDRCS0.BIN', 'DDRCS1.BIN', 'DDRCS0_0.BIN',
                   'DDRCS1_0.BIN', 'DDRCS0_1.BIN', 'DDRCS1_1.BIN']
