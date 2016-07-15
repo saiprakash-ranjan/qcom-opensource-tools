@@ -67,7 +67,7 @@ class AutoDumpInfo(object):
         for (filename, base_addr) in self._parse():
             fullpath = os.path.join(self.autodumpdir, filename)
             end = base_addr + os.path.getsize(fullpath) - 1
-            self.ebi_files.append((open(fullpath), base_addr, end, filename))
+            self.ebi_files.append((open(fullpath, 'rb'), base_addr, end, filename))
             # sort by addr, DDR files first. The goal is for
             # self.ebi_files[0] to be the DDR file with the lowest address.
             self.ebi_files.sort(key=lambda x: (x[-1] not in DDR_FILE_NAMES,
