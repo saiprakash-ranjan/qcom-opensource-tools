@@ -797,7 +797,7 @@ class RamDump():
 
         startup_script.write(('title \"' + out_path + '\"\n').encode('ascii', 'ignore'))
 
-        is_cortex_a53 = self.hw_id == 8916 or self.hw_id == 8939 or self.hw_id == 8936
+        is_cortex_a53 = self.hw_id in ["8916", "8939", "8936"]
 
         if self.arm64 and is_cortex_a53:
             startup_script.write('sys.cpu CORTEXA53\n'.encode('ascii', 'ignore'))
