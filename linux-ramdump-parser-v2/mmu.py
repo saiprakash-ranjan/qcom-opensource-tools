@@ -1,4 +1,4 @@
-# Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -81,7 +81,8 @@ class Armv7MMU(MMU):
         self.secondary_page_tables = [
             [0 for col in range(256)] for row in range(4096)]
 
-        msm_ttbr0 = self.ramdump.phys_offset + self.ramdump.swapper_pg_dir_addr
+        msm_ttbr0 = self.ramdump.kernel_virt_to_phys(
+            self.ramdump.swapper_pg_dir_addr)
         self.ttbr = msm_ttbr0
         virt_address = 0x0
         gb_i = 0
@@ -392,7 +393,8 @@ class Armv7LPAEMMU(MMU):
         pass
 
     def page_table_walk(self, virt):
-        self.ttbr = self.ramdump.swapper_pg_dir_addr + self.ramdump.phys_offset
+        self.ttbr = self.ramdump.kernel_virt_to_phys(
+            self.ramdump.swapper_pg_dir_addr)
         info = self.translate(virt)
         return info.phys if info is not None else None
 
@@ -577,7 +579,8 @@ class Armv8MMU(MMU):
 
     def page_table_walk(self, virt):
 
-        self.ttbr = self.ramdump.swapper_pg_dir_addr + self.ramdump.phys_offset
+        self.ttbr = self.ramdump.kernel_virt_to_phys(
+            self.ramdump.swapper_pg_dir_addr)
 
         virt_r = Register(virt,
             zl_index=(47,39),

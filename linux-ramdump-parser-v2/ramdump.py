@@ -551,6 +551,7 @@ class RamDump():
                 '[!!!] Phys offset was set to {0:x}'.format(\
                     options.phys_offset))
             self.phys_offset = options.phys_offset
+
         self.lookup_table = []
         self.config = []
         self.config_dict = {}
@@ -563,21 +564,46 @@ class RamDump():
             self.page_offset = options.page_offset
         self.setup_symbol_tables()
 
+        va_bits = 39
+        modules_vsize = 0x08000000
+        self.va_start = (0xffffffffffffffff << va_bits) \
+            & 0xffffffffffffffff
+        if self.address_of("kasan_init") is None:
+            self.kasan_shadow_size = 0
+        else:
+            self.kasan_shadow_size = 1 << (va_bits - 3)
+
+        self.kimage_vaddr = self.va_start + self.kasan_shadow_size + \
+            modules_vsize
+
+        self.modules_end = self.page_offset
+        self.kimage_voffset = self.address_of("kimage_voffset")
+        if self.kimage_voffset is not None:
+            self.kimage_voffset = self.kimage_vaddr - self.phys_offset
+            self.modules_end = self.kimage_vaddr
+
         # The address of swapper_pg_dir can be used to determine
         # whether or not we're running with LPAE enabled since an
         # extra 4k is needed for LPAE. If it's 0x5000 below
         # PAGE_OFFSET + TEXT_OFFSET then we know we're using LPAE. For
         # non-LPAE it should be 0x4000 below PAGE_OFFSET + TEXT_OFFSET
-        swapper_pg_dir = self.address_of('swapper_pg_dir')
-        if swapper_pg_dir is None:
+        self.swapper_pg_dir_addr = self.address_of('swapper_pg_dir')
+        if self.swapper_pg_dir_addr is None:
             print_out_str('!!! Could not get the swapper page directory!')
             print_out_str(
                 '!!! Your vmlinux is probably wrong for these dumps')
             print_out_str('!!! Exiting now')
             sys.exit(1)
-        self.swapper_pg_dir_addr =  swapper_pg_dir - self.page_offset
-        self.kernel_text_offset = self.address_of('stext') - self.page_offset
-        pg_dir_size = self.kernel_text_offset - self.swapper_pg_dir_addr
+
+        stext = self.address_of('stext')
+        if self.kimage_voffset is None:
+            self.kernel_text_offset = stext - self.page_offset
+        else:
+            self.kernel_text_offset = stext - self.kimage_vaddr
+
+        pg_dir_size = self.kernel_text_offset + self.page_offset \
+            - self.swapper_pg_dir_addr
+
         if self.arm64:
             print_out_str('Using 64bit MMU')
             self.mmu = Armv8MMU(self)
@@ -633,6 +659,7 @@ class RamDump():
             print_out_str(
                 '!!! This is really bad and probably indicates RAM corruption')
             print_out_str('!!! Some features may be disabled!')
+
         self.unwind = self.Unwinder(self)
 
     def __del__(self):
@@ -704,11 +731,20 @@ class RamDump():
         s = config + '=y'
         return s in self.config
 
+    def kernel_virt_to_phys(self, addr):
+        va_bits = 39
+        if self.kimage_voffset is None:
+            return addr - self.page_offset + self.phys_offset
+        else:
+            if addr & (1 << (va_bits - 1)):
+                return addr - self.page_offset + self.phys_offset
+            else:
+                return addr - (self.kimage_voffset)
+
     def get_version(self):
         banner_addr = self.address_of('linux_banner')
         if banner_addr is not None:
-            # Don't try virt to phys yet, compute manually
-            banner_addr = banner_addr - self.page_offset + self.phys_offset
+            banner_addr = self.kernel_virt_to_phys(banner_addr)
             b = self.read_cstring(banner_addr, 256, False)
             if b is None:
                 print_out_str('!!! Could not read banner address!')
@@ -811,7 +847,9 @@ class RamDump():
                 ebi_path, ram[1]).encode('ascii', 'ignore'))
         if self.arm64:
             startup_script.write('Register.Set NS 1\n'.encode('ascii', 'ignore'))
-            startup_script.write('Data.Set SPR:0x30201 %Quad 0x{0:x}\n'.format(self.swapper_pg_dir_addr + self.phys_offset).encode('ascii', 'ignore'))
+            startup_script.write('Data.Set SPR:0x30201 %Quad 0x{0:x}\n'.format(
+                self.kernel_virt_to_phys(self.swapper_pg_dir_addr))
+                .encode('ascii', 'ignore'))
 
             if is_cortex_a53:
                 startup_script.write('Data.Set SPR:0x30202 %Quad 0x00000012B5193519\n'.encode('ascii', 'ignore'))
@@ -1117,7 +1155,7 @@ class RamDump():
 
         # modules are not supported so just print out an address
         # instead of a confusing symbol
-        if (addr < self.page_offset):
+        if (addr < self.modules_end):
             return ('(No symbol for address {0:x})'.format(addr), 0x0)
 
         low = 0
