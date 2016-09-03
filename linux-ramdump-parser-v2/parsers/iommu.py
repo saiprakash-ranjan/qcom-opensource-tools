@@ -14,7 +14,7 @@ import math
 from print_out import print_out_str
 from parser_util import register_parser, RamParser
 from sizes import SZ_4K, SZ_64K, SZ_1M, SZ_16M, get_order, order_size_strings
-from iommulib import IommuLib, MSM_SMMU_DOMAIN
+from iommulib import IommuLib, MSM_SMMU_DOMAIN, MSM_SMMU_AARCH64_DOMAIN, ARM_SMMU_DOMAIN
 from lpaeiommulib import parse_long_form_tables
 from aarch64iommulib import parse_aarch64_tables
 
@@ -345,11 +345,8 @@ class IOMMU(RamParser):
         for (domain_num, d) in enumerate(self.domain_list):
             if self.ramdump.is_config_defined('CONFIG_IOMMU_LPAE'):
                 parse_long_form_tables(self.ramdump, d, domain_num)
-            elif (self.ramdump.is_config_defined('CONFIG_IOMMU_AARCH64') or
-                    self.ramdump.is_config_defined('CONFIG_ARM_SMMU')):
-                if (d.domain_type == MSM_SMMU_DOMAIN):
-                    self.parse_short_form_tables(d, domain_num)
-                else:
-                    parse_aarch64_tables(self.ramdump, d, domain_num)
-            else:
+            elif (d.domain_type == MSM_SMMU_DOMAIN):
                 self.parse_short_form_tables(d, domain_num)
+            elif ((d.domain_type == ARM_SMMU_DOMAIN) or
+                    (d.domain_type == MSM_SMMU_AARCH64_DOMAIN)):
+                parse_aarch64_tables(self.ramdump, d, domain_num)

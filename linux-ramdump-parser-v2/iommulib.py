@@ -14,11 +14,12 @@ import linux_list as llist
 
 ARM_SMMU_DOMAIN = 0
 MSM_SMMU_DOMAIN = 1
+MSM_SMMU_AARCH64_DOMAIN = 2
 
 
 class Domain(object):
     def __init__(self, pg_table, redirect, ctx_list, client_name,
-                 domain_type=MSM_SMMU_DOMAIN, level=4, domain_num=-1):
+                 domain_type=MSM_SMMU_DOMAIN, level=3, domain_num=-1):
         self.domain_num = domain_num
         self.pg_table = pg_table
         self.redirect = redirect
@@ -131,8 +132,13 @@ class IommuLib(object):
                 redirect = self.ramdump.read_u64(
                    priv_ptr + priv_pt_offset + redirect_offset)
 
-            domain_create = Domain(pg_table, redirect, [],
-                                   client_name)
+            if (self.ramdump.is_config_defined('CONFIG_IOMMU_AARCH64')):
+                domain_create = Domain(pg_table, redirect, [], client_name,
+                                       MSM_SMMU_AARCH64_DOMAIN)
+            else:
+                domain_create = Domain(pg_table, redirect, [], client_name,
+                                       MSM_SMMU_DOMAIN)
+
             domain_list.append(domain_create)
 
     def _iommu_list_func(self, node, ctx_list):
@@ -215,6 +221,11 @@ class IommuLib(object):
                                           'attached_elm'))
             list_walker.walk(list_attached, self._iommu_list_func, ctx_list)
 
-        domain_list.append(
-            Domain(pg_table, redirect, ctx_list, client_name,
-                   domain_num=domain_num))
+            if (self.ramdump.is_config_defined('CONFIG_IOMMU_AARCH64')):
+                domain_create = Domain(pg_table, redirect, ctx_list, client_name,
+                                       MSM_SMMU_AARCH64_DOMAIN, domain_num=domain_num)
+            else:
+                domain_create = Domain(pg_table, redirect, ctx_list, client_name,
+                                       MSM_SMMU_DOMAIN, domain_num=domain_num)
+
+            domain_list.append(domain_create)
