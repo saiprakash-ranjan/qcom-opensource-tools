@@ -435,24 +435,24 @@ L1_DCache_KRYO2XX_SILVER = L1_DCache_A53
 L1_ICache_KYRO2XX_SILVER = L1_ICache_A53
 
 # "msmcobalt"
-lookuptable[("cobalt", 0x80, 0x10)] = L1_DCache_KRYO2XX_SILVER()
-lookuptable[("cobalt", 0x81, 0x10)] = L1_DCache_KRYO2XX_SILVER()
-lookuptable[("cobalt", 0x82, 0x10)] = L1_DCache_KRYO2XX_SILVER()
-lookuptable[("cobalt", 0x84, 0x10)] = L1_DCache_KRYO2XX_SILVER()
-lookuptable[("cobalt", 0x84, 0x10)] = L1_DCache_KRYO2XX_GOLD()
-lookuptable[("cobalt", 0x85, 0x10)] = L1_DCache_KRYO2XX_GOLD()
-lookuptable[("cobalt", 0x86, 0x10)] = L1_DCache_KRYO2XX_GOLD()
-lookuptable[("cobalt", 0x87, 0x10)] = L1_DCache_KRYO2XX_GOLD()
+lookuptable[("cobalt", 0x80, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("cobalt", 0x81, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("cobalt", 0x82, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("cobalt", 0x84, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("cobalt", 0x84, 0x14)] = L1_DCache_KRYO2XX_GOLD()
+lookuptable[("cobalt", 0x85, 0x14)] = L1_DCache_KRYO2XX_GOLD()
+lookuptable[("cobalt", 0x86, 0x14)] = L1_DCache_KRYO2XX_GOLD()
+lookuptable[("cobalt", 0x87, 0x14)] = L1_DCache_KRYO2XX_GOLD()
 
 
-lookuptable[("cobalt", 0x60, 0x10)] = L1_ICache_KYRO2XX_SILVER()
-lookuptable[("cobalt", 0x61, 0x10)] = L1_ICache_KYRO2XX_SILVER()
-lookuptable[("cobalt", 0x62, 0x10)] = L1_ICache_KYRO2XX_SILVER()
-lookuptable[("cobalt", 0x63, 0x10)] = L1_ICache_KYRO2XX_SILVER()
-lookuptable[("cobalt", 0x64, 0x10)] = L1_ICache_KRYO2XX_GOLD()
-lookuptable[("cobalt", 0x65, 0x10)] = L1_ICache_KRYO2XX_GOLD()
-lookuptable[("cobalt", 0x66, 0x10)] = L1_ICache_KRYO2XX_GOLD()
-lookuptable[("cobalt", 0x67, 0x10)] = L1_ICache_KRYO2XX_GOLD()
+lookuptable[("cobalt", 0x60, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("cobalt", 0x61, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("cobalt", 0x62, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("cobalt", 0x63, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("cobalt", 0x64, 0x14)] = L1_ICache_KRYO2XX_GOLD()
+lookuptable[("cobalt", 0x65, 0x14)] = L1_ICache_KRYO2XX_GOLD()
+lookuptable[("cobalt", 0x66, 0x14)] = L1_ICache_KRYO2XX_GOLD()
+lookuptable[("cobalt", 0x67, 0x14)] = L1_ICache_KRYO2XX_GOLD()
 
 
 # 8994
