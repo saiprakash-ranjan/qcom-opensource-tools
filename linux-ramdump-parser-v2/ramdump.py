@@ -676,6 +676,9 @@ class RamDump():
         file_path = os.path.join(self.outdir, file_name)
         f = None
         try:
+            dir_path = os.path.dirname(file_path)
+            if not os.path.exists(dir_path) and 'w' in mode:
+                os.makedirs(dir_path)
             f = open(file_path, mode)
         except:
             print_out_str('Could not open path {0}'.format(file_path))
