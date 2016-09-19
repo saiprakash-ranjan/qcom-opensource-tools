@@ -19,6 +19,7 @@ import random
 import subprocess
 import sys
 import time
+import local_settings
 
 from dcc import DccRegDump, DccSramDump
 from pmic import PmicRegDump
@@ -50,10 +51,12 @@ class client(object):
     MSM_DUMP_DATA_LOG_BUF = 0x110
     MSM_DUMP_DATA_LOG_BUF_FIRST_IDX = 0x111
     MSM_DUMP_DATA_L2_TLB = 0x120
+    MSM_DUMP_DATA_SCANDUMP = 0xEB
     MSM_DUMP_DATA_MAX = MAX_NUM_ENTRIES
 
 # Client functions will be executed in top-to-bottom order
 client_types = [
+    ('MSM_DUMP_DATA_SCANDUMP', 'parse_scandump'),
     ('MSM_DUMP_DATA_CPU_CTX', 'parse_cpu_ctx'),
     ('MSM_DUMP_DATA_L1_INST_TLB', 'parse_l1_inst_tlb'),
     ('MSM_DUMP_DATA_L1_DATA_TLB', 'parse_l1_data_tlb'),
@@ -92,6 +95,34 @@ class DebugImage_v2():
         else:
             self.event_call = 'struct ftrace_event_call'
             self.event_class = 'struct ftrace_event_class'
+        self.has_scan_dump = False
+
+    def parse_scandump(self, version, start, end, client_id, ram_dump):
+        scandump_file_prefix = "scandump"
+        try:
+            scan_wrapper_path = local_settings.scandump_parser_path
+        except AttributeError:
+            print_out_str('Could not find scandump_parser_path . Please define scandump_parser_path in local_settings')
+            return
+        if client_id == client.MSM_DUMP_DATA_SCANDUMP:
+            self.has_scan_dump = True
+        output = os.path.join(ram_dump.outdir, scandump_file_prefix)
+        if os.path.isfile(os.path.join(ram_dump.outdir, "vv_msg_4_header.bin")):
+            input = os.path.join(ram_dump.outdir, "vv_msg_4_header.bin")
+        else:
+            print_out_str('File vv_msg_4_header.bin is expected to parse scandump')
+            return
+        print_out_str(
+            'Parsing scandump context start {0:x} end {1:x} {2} {3}'.format(start, end, output, input))
+        if ram_dump.arm64:
+            arch = "aarch64"
+        header_bin = ram_dump.open_file(input)
+        it = range(start, end)
+        for i in it:
+            val = ram_dump.read_byte(i, False)
+            header_bin.write(struct.pack("<B", val))
+        header_bin.close()
+        subprocess.call('python {0} -d {1} -o {2} -f {3}'.format(scan_wrapper_path, input, output, arch))
 
     def parse_cpu_ctx(self, version, start, end, client_id, ram_dump):
         core = client_id - client.MSM_DUMP_DATA_CPU_CTX
@@ -99,7 +130,7 @@ class DebugImage_v2():
         print_out_str(
             'Parsing CPU{2} context start {0:x} end {1:x}'.format(start, end, core))
 
-        regs = TZRegDump_v2()
+        regs = TZRegDump_v2(self.has_scan_dump)
         if regs.init_regs(version, start, end, core, ram_dump) is False:
             print_out_str('!!! Could not get registers from TZ dump')
             return
@@ -562,7 +593,6 @@ class DebugImage_v2():
                                     client_addr + dump_data_addr_offset, False)
                 dump_data_len = ram_dump.read_dword(
                                     client_addr + dump_data_len_offset, False)
-
                 print_out_str('Parsing debug information for {0}. Version: {1} Magic: {2:x} Source: {3}'.format(
                     client_name, dump_data_version, dump_data_magic,
                     dump_data_name))
