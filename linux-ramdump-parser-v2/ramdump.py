@@ -67,11 +67,12 @@ class AutoDumpInfo(object):
         for (filename, base_addr) in self._parse():
             fullpath = os.path.join(self.autodumpdir, filename)
             end = base_addr + os.path.getsize(fullpath) - 1
-            self.ebi_files.append((open(fullpath, 'rb'), base_addr, end, filename))
+            self.ebi_files.append((open(fullpath, 'rb'), base_addr, end, fullpath))
             # sort by addr, DDR files first. The goal is for
             # self.ebi_files[0] to be the DDR file with the lowest address.
-            self.ebi_files.sort(key=lambda x: (x[-1] not in DDR_FILE_NAMES,
-                                               x[1]))
+            self.ebi_files.sort(
+                key=lambda x: (os.path.basename(x[-1]) not in DDR_FILE_NAMES,
+                               x[1]))
 
     def _parse(self):
         # Implementations should return an interable of (filename, base_addr)
@@ -797,7 +798,7 @@ class RamDump():
                     for (f, start, end, filename) in self.ebi_files:
                         print_out_str('Adding {0} {1:x}--{2:x}'.format(
                             filename, start, end))
-                        return True
+                    return True
         self.ebi_files = None
         return False
 
