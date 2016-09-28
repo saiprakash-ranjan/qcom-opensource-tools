@@ -552,6 +552,7 @@ class RamDump():
                     options.phys_offset))
             self.phys_offset = options.phys_offset
 
+        self.wlan = options.wlan
         self.lookup_table = []
         self.config = []
         self.config_dict = {}

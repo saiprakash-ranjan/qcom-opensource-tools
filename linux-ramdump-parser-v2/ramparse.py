@@ -146,11 +146,12 @@ if __name__ == '__main__':
                       action='append', default=[])
     parser.add_option('', '--ipc-skip', dest='ipc_skip', action='store_true',
                       help='Skip IPC Logging when parsing everything',
-					  default=False)
+                      default=False)
     parser.add_option('', '--ipc-debug', dest='ipc_debug', action='store_true',
                       help='Debug Mode for IPC Logging', default=False)
     parser.add_option('', '--eval',
                       help='Evaluate some python code directly, or from stdin if "-" is passed. The "dump" variable will be available, as it is with the --shell option.')  # noqa
+    parser.add_option('', '--wlan', dest='wlan', help='wlan.ko path')
 
     for p in parser_util.get_parsers():
         parser.add_option(p.shortopt or '',
@@ -236,6 +237,14 @@ if __name__ == '__main__':
                 print_out_str(
                     'Ram file {0} does not exist. Exiting...'.format(a[0]))
                 sys.exit(1)
+
+    if options.wlan is None:
+        options.wlan = "INTEGRATED"
+    else:
+        if not os.path.exists(options.wlan):
+            print_out_str('{} does not exist.'.format(options.wlan))
+            print_out_str('Cannot proceed without wlan.ko Exiting')
+            sys.exit(1)
 
     gdb_path = options.gdb
     nm_path = options.nm
