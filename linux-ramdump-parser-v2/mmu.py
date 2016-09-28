@@ -506,7 +506,7 @@ class Armv8MMU(MMU):
         else:
             raise Exception(
                 'Invalid stage 1 first- or second-level translation\ndescriptor: (%s)\naddr: (%s)'
-                % (str(descriptor), str(addr))
+               % (str(descriptor), str(addr))
             )
         return descriptor
 
@@ -589,7 +589,10 @@ class Armv8MMU(MMU):
             tl_index=(20,12),
             page_index=(11,0))
 
-        fl_desc = self.do_fl_sl_level_lookup(self.ttbr, virt_r.fl_index, 12, 30)
+        try:
+          fl_desc = self.do_fl_sl_level_lookup(self.ttbr, virt_r.fl_index, 12, 30)
+        except:
+          return None
 
         if fl_desc.dtype == Armv8MMU.DESCRIPTOR_BLOCK:
             return self.fl_block_desc_2_phys(fl_desc, virt_r)
