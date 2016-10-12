@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -52,24 +52,25 @@ class client(object):
     MSM_DUMP_DATA_L2_TLB = 0x120
     MSM_DUMP_DATA_MAX = MAX_NUM_ENTRIES
 
-client_table = {
-    'MSM_DUMP_DATA_CPU_CTX': 'parse_cpu_ctx',
-    'MSM_DUMP_DATA_L1_INST_TLB': 'parse_l1_inst_tlb',
-    'MSM_DUMP_DATA_L1_DATA_TLB': 'parse_l1_data_tlb',
-    'MSM_DUMP_DATA_L1_INST_CACHE': 'parse_cache_common',
-    'MSM_DUMP_DATA_L1_DATA_CACHE': 'parse_cache_common',
-    'MSM_DUMP_DATA_L2_CACHE': 'parse_cache_common',
-    'MSM_DUMP_DATA_L3_CACHE': 'parse_l3_cache',
-    'MSM_DUMP_DATA_OCMEM': 'parse_ocmem',
-    'MSM_DUMP_DATA_DBGUI_REG' : 'parse_qdss_common',
-    'MSM_DUMP_DATA_VSENSE': 'parse_vsens',
-    'MSM_DUMP_DATA_PMIC': 'parse_pmic',
-    'MSM_DUMP_DATA_DCC_REG':'parse_dcc_reg',
-    'MSM_DUMP_DATA_DCC_SRAM':'parse_dcc_sram',
-    'MSM_DUMP_DATA_TMC_ETF': 'parse_qdss_common',
-    'MSM_DUMP_DATA_TMC_REG': 'parse_qdss_common',
-    'MSM_DUMP_DATA_L2_TLB': 'parse_l2_tlb',
-}
+# Client functions will be executed in top-to-bottom order
+client_types = [
+    ('MSM_DUMP_DATA_CPU_CTX', 'parse_cpu_ctx'),
+    ('MSM_DUMP_DATA_L1_INST_TLB', 'parse_l1_inst_tlb'),
+    ('MSM_DUMP_DATA_L1_DATA_TLB', 'parse_l1_data_tlb'),
+    ('MSM_DUMP_DATA_L1_INST_CACHE', 'parse_cache_common'),
+    ('MSM_DUMP_DATA_L1_DATA_CACHE', 'parse_cache_common'),
+    ('MSM_DUMP_DATA_L2_CACHE', 'parse_cache_common'),
+    ('MSM_DUMP_DATA_L3_CACHE', 'parse_l3_cache'),
+    ('MSM_DUMP_DATA_OCMEM', 'parse_ocmem'),
+    ('MSM_DUMP_DATA_DBGUI_REG', 'parse_qdss_common'),
+    ('MSM_DUMP_DATA_VSENSE', 'parse_vsens'),
+    ('MSM_DUMP_DATA_PMIC', 'parse_pmic'),
+    ('MSM_DUMP_DATA_DCC_REG', 'parse_dcc_reg'),
+    ('MSM_DUMP_DATA_DCC_SRAM', 'parse_dcc_sram'),
+    ('MSM_DUMP_DATA_TMC_ETF', 'parse_qdss_common'),
+    ('MSM_DUMP_DATA_TMC_REG', 'parse_qdss_common'),
+    ('MSM_DUMP_DATA_L2_TLB', 'parse_l2_tlb'),
+]
 
 qdss_tag_to_field_name = {
     'MSM_DUMP_DATA_TMC_REG': 'tmc_etr_start',
@@ -360,6 +361,52 @@ class DebugImage_v2():
         print_out_str('--------')
         print_out_str(p.communicate()[0])
 
+    def sorted_dump_data_clients(self, ram_dump, table, table_num_entries):
+        """ Returns a sorted list of (client_name, func, client_address) where
+
+        client_address --
+            the (struct msm_dump_entry*) which contains a client_id mapping to
+            client_name
+
+        func --
+            registered function in client_types to parse entries of
+            this type
+
+        the return value is sorted in the same order as the client names
+        in client_types
+        """
+
+        dump_entry_id_offset = ram_dump.field_offset(
+            'struct msm_dump_entry', 'id')
+        dump_entry_size = ram_dump.sizeof('struct msm_dump_entry')
+        results = list()
+
+        client_table = dict(client_types)
+        # get first column of client_types
+        client_names = zip(*client_types)[0]
+
+        for j in range(0, table_num_entries):
+            client_entry = table + j * dump_entry_size
+            client_id = ram_dump.read_u32(
+                            client_entry + dump_entry_id_offset, False)
+
+            if (client_id < 0 or
+                    client_id > len(self.dump_data_id_lookup_table)):
+                print_out_str(
+                    '!!! Invalid dump client id found {0:x}'.format(client_id))
+                continue
+
+            client_name = self.dump_data_id_lookup_table[client_id]
+            if client_name not in client_table:
+                print_out_str(
+                    '!!! {0} Does not have an associated function. The parser needs to be updated!'.format(client_name))
+                continue
+
+            results.append((client_name, client_table[client_name], client_entry))
+
+        results.sort(key=lambda(x): client_names.index(x[0]))
+        return results
+
     def parse_dump_v2(self, ram_dump):
         self.dump_type_lookup_table = ram_dump.gdbmi.get_enum_lookup_table(
             'msm_dump_type', 2)
@@ -479,51 +526,52 @@ class DebugImage_v2():
                     table_version >> 20, table_version & 0xFFFFF, self.dump_table_id_lookup_table[entry_id],
                     self.dump_type_lookup_table[entry_type], table_num_entries))
 
-            for j in range(0, table_num_entries):
+            lst = self.sorted_dump_data_clients(
+                    ram_dump, entry_addr + dump_table_entry_offset,
+                    table_num_entries)
+            for (client_name, func, client_entry) in lst:
                 print_out_str('--------')
-                client_entry = entry_addr + dump_table_entry_offset + j * dump_entry_size
-                client_id = ram_dump.read_u32(client_entry + dump_entry_id_offset, False)
-                client_type =  ram_dump.read_u32(client_entry + dump_entry_type_offset, False)
-                client_addr = ram_dump.read_word(client_entry + dump_entry_addr_offset, False)
-
-                if client_id < 0 or client_id > len(self.dump_data_id_lookup_table):
-                    print_out_str(
-                        '!!! Invalid dump client id found {0:x}'.format(client_id))
-                    continue
+                client_id = ram_dump.read_u32(
+                                client_entry + dump_entry_id_offset, False)
+                client_type = ram_dump.read_u32(
+                                client_entry + dump_entry_type_offset, False)
+                client_addr = ram_dump.read_word(
+                                client_entry + dump_entry_addr_offset, False)
 
                 if client_type > len(self.dump_type_lookup_table):
                     print_out_str(
                         '!!! Invalid dump client type found {0:x}'.format(client_type))
                     continue
 
-                dump_data_magic = ram_dump.read_u32(client_addr + dump_data_magic_offset, False)
-                dump_data_version = ram_dump.read_u32(client_addr + dump_data_version_offset, False)
-                dump_data_name = ram_dump.read_cstring(client_addr + dump_data_name_offset,
-                                            ram_dump.sizeof('((struct msm_dump_data *)0x0)->name'), False)
-                dump_data_addr = ram_dump.read_dword(client_addr + dump_data_addr_offset, False)
-                dump_data_len = ram_dump.read_dword(client_addr + dump_data_len_offset, False)
+                dump_data_magic = ram_dump.read_u32(
+                                client_addr + dump_data_magic_offset, False)
+                dump_data_version = ram_dump.read_u32(
+                                client_addr + dump_data_version_offset, False)
+                dump_data_name = ram_dump.read_cstring(
+                        client_addr + dump_data_name_offset,
+                        ram_dump.sizeof('((struct msm_dump_data *)0x0)->name'),
+                        False)
+                dump_data_addr = ram_dump.read_dword(
+                                    client_addr + dump_data_addr_offset, False)
+                dump_data_len = ram_dump.read_dword(
+                                    client_addr + dump_data_len_offset, False)
 
-                client_name = self.dump_data_id_lookup_table[client_id]
-                if client_name not in client_table:
-                    print_out_str(
-                         '!!! {0} Does not have an associated function. The parser needs to be updated!'.format(client_name))
-                else:
-                    print_out_str('Parsing debug information for {0}. Version: {1} Magic: {2:x} Source: {3}'.format(
-                       client_name, dump_data_version, dump_data_magic, dump_data_name))
+                print_out_str('Parsing debug information for {0}. Version: {1} Magic: {2:x} Source: {3}'.format(
+                    client_name, dump_data_version, dump_data_magic,
+                    dump_data_name))
 
-                    if dump_data_magic is None:
-                        print_out_str(
-                            "!!! Address {0:x} is bogus! Can't parse!".format(start))
-                        continue
+                if dump_data_magic is None:
+                    print_out_str("!!! Address {0:x} is bogus! Can't parse!".format(
+                                client_addr + dump_data_magic_offset))
+                    continue
 
-                    if dump_data_magic != MEMDUMPV2_MAGIC:
-                        print_out_str(
-                        "!!! Magic {0:x} doesn't match! No context will be parsed".format(dump_data_magic))
-                        continue
+                if dump_data_magic != MEMDUMPV2_MAGIC:
+                    print_out_str("!!! Magic {0:x} doesn't match! No context will be parsed".format(dump_data_magic))
+                    continue
 
-                    func = client_table[client_name]
-                    getattr(DebugImage_v2, func)(self, dump_data_version, dump_data_addr, dump_data_addr + dump_data_len,
-                                                 client_id, ram_dump)
+                getattr(DebugImage_v2, func)(
+                    self, dump_data_version, dump_data_addr,
+                    dump_data_addr + dump_data_len, client_id, ram_dump)
 
             self.qdss.dump_standard(ram_dump)
             if not ram_dump.skip_qdss_bin:
