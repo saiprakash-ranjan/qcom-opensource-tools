@@ -14,6 +14,7 @@ class Board(object):
     socid = shared id unique to a board type
     board_num = human readable board number indicating the board type
                 (e.g. 8960, 8974)
+    cpu = T32 cpu model
     ram_start = start of the DDR
     imem_start = start of location in which the watchdog address is stored
     smem_addr = start of the shared memory region
@@ -376,6 +377,20 @@ class BoardCalifornium(Board):
         self.imem_file_name = 'OCIMEM.BIN'
 
 
+class BoardCobalt(Board):
+    def __init__(self, socid):
+        super(BoardCobalt, self).__init__()
+        self.socid = socid
+        self.board_num = "cobalt"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6000000
+        self.phys_offset = 0x80000000
+        self.imem_start = 0x14680000
+        self.wdog_addr = 0x146BF658
+        self.imem_file_name = 'OCIMEM.BIN'
+
+
 boards = []
 
 boards.append(Board9640(socid=234))
@@ -569,6 +584,9 @@ boards.append(Board8917(socid=308))
 boards.append(Board8917(socid=309))
 
 boards.append(BoardCalifornium(socid=279))
+
+boards.append(BoardCobalt(socid=292))
+
 
 def get_supported_boards():
     """ Called by other part of the code to get a list of boards """
