@@ -80,11 +80,18 @@ qdss_tag_to_field_name = {
 
 class DebugImage_v2():
 
-    def __init__(self):
+    def __init__(self, ramdump):
         self.qdss = QDSSDump()
         self.dump_type_lookup_table = []
         self.dump_table_id_lookup_table = []
         self.dump_data_id_lookup_table  = []
+        version = re.findall(r'\d+', ramdump.version)
+        if int(version[0]) > 3:
+            self.event_call = 'struct trace_event_call'
+            self.event_class = 'struct trace_event_class'
+        else:
+            self.event_call = 'struct ftrace_event_call'
+            self.event_class = 'struct ftrace_event_class'
 
     def parse_cpu_ctx(self, version, start, end, client_id, ram_dump):
         core = client_id - client.MSM_DUMP_DATA_CPU_CTX
@@ -202,23 +209,23 @@ class DebugImage_v2():
             self.formats_out.write("\tfield:{0} {1};\toffset:{2};\tsize:{3};\tsigned:{4};\n".format(type_str, field_name, offset, size, signed))
 
     def ftrace_events_func(self, ftrace_list, ram_dump):
-        event_offset = ram_dump.field_offset('struct ftrace_event_call', 'event')
-        fmt_offset = ram_dump.field_offset('struct ftrace_event_call', 'print_fmt')
-        class_offset = ram_dump.field_offset('struct ftrace_event_call', 'class')
-        flags_offset = ram_dump.field_offset('struct ftrace_event_call', 'flags')
+        event_offset = ram_dump.field_offset(self.event_call, 'event')
+        fmt_offset = ram_dump.field_offset(self.event_call,'print_fmt')
+        class_offset = ram_dump.field_offset(self.event_call, 'class')
+        flags_offset = ram_dump.field_offset(self.event_call, 'flags')
         flags = ram_dump.read_word(ftrace_list + flags_offset)
 
         if (ram_dump.kernel_version >= (3, 18) and (flags & TRACE_EVENT_FL_TRACEPOINT)):
-            tp_offset = ram_dump.field_offset('struct ftrace_event_call', 'tp')
+            tp_offset = ram_dump.field_offset(self.event_call, 'tp')
             tp_name_offset = ram_dump.field_offset('struct tracepoint', 'name')
             tp = ram_dump.read_word(ftrace_list + tp_offset)
             name = ram_dump.read_word(tp + tp_name_offset)
         else:
-            name_offset = ram_dump.field_offset('struct ftrace_event_call', 'name')
+            name_offset = ram_dump.field_offset(self.event_call, 'name')
             name = ram_dump.read_word(ftrace_list + name_offset)
 
         type_offset = ram_dump.field_offset('struct trace_event', 'type')
-        fields_offset = ram_dump.field_offset('struct ftrace_event_class', 'fields')
+        fields_offset = ram_dump.field_offset(self.event_class, 'fields')
         common_field_list = ram_dump.address_of('ftrace_common_fields')
         field_next_offset = ram_dump.field_offset('struct ftrace_event_field', 'link')
 
@@ -248,7 +255,7 @@ class DebugImage_v2():
         self.formats_out = formats_out
 
         ftrace_events_list = ram_dump.address_of('ftrace_events')
-        next_offset = ram_dump.field_offset('struct ftrace_event_call', 'list')
+        next_offset = ram_dump.field_offset(self.event_call, 'list')
         list_walker = llist.ListWalker(ram_dump, ftrace_events_list, next_offset)
         list_walker.walk_prev(ftrace_events_list, self.ftrace_events_func, ram_dump)
 
