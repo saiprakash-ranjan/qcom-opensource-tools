@@ -1,4 +1,4 @@
-# Copyright (c) 2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -136,6 +136,12 @@ class TimerList(RamParser) :
                 else:
                     self.iterate_vec(vec, base)
                 self.print_vec(vec)
+
+        tick_do_timer_cpu_addr = self.ramdump.address_of('tick_do_timer_cpu')
+        tick_do_timer_cpu_val = "tick_do_timer_cpu: {0}\n".format(self.ramdump.read_int(tick_do_timer_cpu_addr))
+        self.output_file.write("=" * len(tick_do_timer_cpu_val) + "\n")
+        self.output_file.write(tick_do_timer_cpu_val)
+        self.output_file.write("=" * len(tick_do_timer_cpu_val) + "\n")
 
     def parse(self):
         self.output_file = self.ramdump.open_file('timerlist.txt')
