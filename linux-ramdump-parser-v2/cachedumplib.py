@@ -509,6 +509,12 @@ lookuptable[("8917", 0x85, 0x14)] = L1_DCache_A53()
 lookuptable[("8917", 0x86, 0x14)] = L1_DCache_A53()
 lookuptable[("8917", 0x87, 0x14)] = L1_DCache_A53()
 
+# 8920
+lookuptable[("8920", 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[("8920", 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[("8920", 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[("8920", 0x87, 0x14)] = L1_DCache_A53()
+
 # 8937
 lookuptable[("8937", 0x80, 0x14)] = L1_DCache_A53()
 lookuptable[("8937", 0x81, 0x14)] = L1_DCache_A53()
@@ -518,6 +524,16 @@ lookuptable[("8937", 0x84, 0x14)] = L1_DCache_A53()
 lookuptable[("8937", 0x85, 0x14)] = L1_DCache_A53()
 lookuptable[("8937", 0x86, 0x14)] = L1_DCache_A53()
 lookuptable[("8937", 0x87, 0x14)] = L1_DCache_A53()
+
+# 8940
+lookuptable[("8940", 0x80, 0x14)] = L1_DCache_A53()
+lookuptable[("8940", 0x81, 0x14)] = L1_DCache_A53()
+lookuptable[("8940", 0x82, 0x14)] = L1_DCache_A53()
+lookuptable[("8940", 0x83, 0x14)] = L1_DCache_A53()
+lookuptable[("8940", 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[("8940", 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[("8940", 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[("8940", 0x87, 0x14)] = L1_DCache_A53()
 
 # 8953
 lookuptable[("8953", 0x80, 0x14)] = L1_DCache_A53()
