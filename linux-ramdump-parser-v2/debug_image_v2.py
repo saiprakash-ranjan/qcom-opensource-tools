@@ -437,7 +437,7 @@ class DebugImage_v2():
             client_name = self.dump_data_id_lookup_table[client_id]
             if client_name not in client_table:
                 print_out_str(
-                    '!!! {0} Does not have an associated function. The parser needs to be updated!'.format(client_name))
+                    '!!! {0} Does not have an associated function. Skipping!'.format(client_name))
                 continue
 
             results.append((client_name, client_table[client_name], client_entry))
