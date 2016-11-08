@@ -401,11 +401,11 @@ class BoardCalifornium(Board):
         self.imem_file_name = 'OCIMEM.BIN'
 
 
-class BoardCobalt(Board):
+class Board8998(Board):
     def __init__(self, socid):
-        super(BoardCobalt, self).__init__()
+        super(Board8998, self).__init__()
         self.socid = socid
-        self.board_num = "cobalt"
+        self.board_num = "8998"
         self.cpu = 'CORTEXA53'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6000000
@@ -613,7 +613,7 @@ boards.append(Board8920(socid=320))
 
 boards.append(BoardCalifornium(socid=279))
 
-boards.append(BoardCobalt(socid=292))
+boards.append(Board8998(socid=292))
 
 
 def get_supported_boards():
