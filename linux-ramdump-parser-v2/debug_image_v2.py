@@ -107,11 +107,7 @@ class DebugImage_v2():
         if client_id == client.MSM_DUMP_DATA_SCANDUMP:
             self.has_scan_dump = True
         output = os.path.join(ram_dump.outdir, scandump_file_prefix)
-        if os.path.isfile(os.path.join(ram_dump.outdir, "vv_msg_4_header.bin")):
-            input = os.path.join(ram_dump.outdir, "vv_msg_4_header.bin")
-        else:
-            print_out_str('File vv_msg_4_header.bin is expected to parse scandump')
-            return
+        input = os.path.join(ram_dump.outdir, "vv_msg_4_header.bin")
         print_out_str(
             'Parsing scandump context start {0:x} end {1:x} {2} {3}'.format(start, end, output, input))
         if ram_dump.arm64:
