@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -11,6 +11,8 @@
 
 import struct
 import re
+
+from scandump_reader import Scandump_v2
 from print_out import print_out_str
 from bitops import is_set
 
@@ -693,7 +695,7 @@ class TZCpuCtx_v2():
 
 class TZRegDump_v2():
 
-    def __init__(self):
+    def __init__(self, has_scan_dump):
         self.core_regs = None
         self.sec_regs = None
         self.neon_regs = {}
@@ -703,6 +705,7 @@ class TZRegDump_v2():
         self.core = 0
         self.status = []
         self.neon_fields = []
+        self.has_scan_dump = has_scan_dump
 
     def dump_all_regs(self, ram_dump):
         coren_regs = ram_dump.open_file('core{0}_regs.cmm'.format(self.core))
@@ -815,8 +818,21 @@ class TZRegDump_v2():
             self.start_addr += struct.calcsize(
                 sysdbg_cpu32_ctxt_regs_type[self.version])
 
+        if self.has_scan_dump:
+           if core > 3:
+              self.scan_data = Scandump_v2(self.core, ram_dump, self.version)
+              self.scan_regs = self.scan_data.prepare_dict()
+        else:
+           print_out_str("No Scan dump data to be processed...")
+
         self.core_regs = TZCpuCtx_v2(self.version, sc_regs,
                                      self.neon_regs, ram_dump)
+
+        if core > 3:
+            if self.has_scan_dump:
+               self.scan_regs['pc'] = self.core_regs.regs['pc']
+               self.core_regs.regs = self.scan_regs
+
         self.sec_regs = TZCpuCtx_v2(self.version, sc_secure,
                                     self.neon_regs, ram_dump)
         return True

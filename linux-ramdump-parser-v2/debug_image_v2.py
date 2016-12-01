@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -19,6 +19,7 @@ import random
 import subprocess
 import sys
 import time
+import local_settings
 
 from dcc import DccRegDump, DccSramDump
 from pmic import PmicRegDump
@@ -50,26 +51,29 @@ class client(object):
     MSM_DUMP_DATA_LOG_BUF = 0x110
     MSM_DUMP_DATA_LOG_BUF_FIRST_IDX = 0x111
     MSM_DUMP_DATA_L2_TLB = 0x120
+    MSM_DUMP_DATA_SCANDUMP = 0xEB
     MSM_DUMP_DATA_MAX = MAX_NUM_ENTRIES
 
-client_table = {
-    'MSM_DUMP_DATA_CPU_CTX': 'parse_cpu_ctx',
-    'MSM_DUMP_DATA_L1_INST_TLB': 'parse_l1_inst_tlb',
-    'MSM_DUMP_DATA_L1_DATA_TLB': 'parse_l1_data_tlb',
-    'MSM_DUMP_DATA_L1_INST_CACHE': 'parse_cache_common',
-    'MSM_DUMP_DATA_L1_DATA_CACHE': 'parse_cache_common',
-    'MSM_DUMP_DATA_L2_CACHE': 'parse_cache_common',
-    'MSM_DUMP_DATA_L3_CACHE': 'parse_l3_cache',
-    'MSM_DUMP_DATA_OCMEM': 'parse_ocmem',
-    'MSM_DUMP_DATA_DBGUI_REG' : 'parse_qdss_common',
-    'MSM_DUMP_DATA_VSENSE': 'parse_vsens',
-    'MSM_DUMP_DATA_PMIC': 'parse_pmic',
-    'MSM_DUMP_DATA_DCC_REG':'parse_dcc_reg',
-    'MSM_DUMP_DATA_DCC_SRAM':'parse_dcc_sram',
-    'MSM_DUMP_DATA_TMC_ETF': 'parse_qdss_common',
-    'MSM_DUMP_DATA_TMC_REG': 'parse_qdss_common',
-    'MSM_DUMP_DATA_L2_TLB': 'parse_l2_tlb',
-}
+# Client functions will be executed in top-to-bottom order
+client_types = [
+    ('MSM_DUMP_DATA_SCANDUMP', 'parse_scandump'),
+    ('MSM_DUMP_DATA_CPU_CTX', 'parse_cpu_ctx'),
+    ('MSM_DUMP_DATA_L1_INST_TLB', 'parse_l1_inst_tlb'),
+    ('MSM_DUMP_DATA_L1_DATA_TLB', 'parse_l1_data_tlb'),
+    ('MSM_DUMP_DATA_L1_INST_CACHE', 'parse_cache_common'),
+    ('MSM_DUMP_DATA_L1_DATA_CACHE', 'parse_cache_common'),
+    ('MSM_DUMP_DATA_L2_CACHE', 'parse_cache_common'),
+    ('MSM_DUMP_DATA_L3_CACHE', 'parse_l3_cache'),
+    ('MSM_DUMP_DATA_OCMEM', 'parse_ocmem'),
+    ('MSM_DUMP_DATA_DBGUI_REG', 'parse_qdss_common'),
+    ('MSM_DUMP_DATA_VSENSE', 'parse_vsens'),
+    ('MSM_DUMP_DATA_PMIC', 'parse_pmic'),
+    ('MSM_DUMP_DATA_DCC_REG', 'parse_dcc_reg'),
+    ('MSM_DUMP_DATA_DCC_SRAM', 'parse_dcc_sram'),
+    ('MSM_DUMP_DATA_TMC_ETF', 'parse_qdss_common'),
+    ('MSM_DUMP_DATA_TMC_REG', 'parse_qdss_common'),
+    ('MSM_DUMP_DATA_L2_TLB', 'parse_l2_tlb'),
+]
 
 qdss_tag_to_field_name = {
     'MSM_DUMP_DATA_TMC_REG': 'tmc_etr_start',
@@ -79,11 +83,42 @@ qdss_tag_to_field_name = {
 
 class DebugImage_v2():
 
-    def __init__(self):
+    def __init__(self, ramdump):
         self.qdss = QDSSDump()
         self.dump_type_lookup_table = []
         self.dump_table_id_lookup_table = []
         self.dump_data_id_lookup_table  = []
+        version = re.findall(r'\d+', ramdump.version)
+        if int(version[0]) > 3:
+            self.event_call = 'struct trace_event_call'
+            self.event_class = 'struct trace_event_class'
+        else:
+            self.event_call = 'struct ftrace_event_call'
+            self.event_class = 'struct ftrace_event_class'
+        self.has_scan_dump = False
+
+    def parse_scandump(self, version, start, end, client_id, ram_dump):
+        scandump_file_prefix = "scandump"
+        try:
+            scan_wrapper_path = local_settings.scandump_parser_path
+        except AttributeError:
+            print_out_str('Could not find scandump_parser_path . Please define scandump_parser_path in local_settings')
+            return
+        if client_id == client.MSM_DUMP_DATA_SCANDUMP:
+            self.has_scan_dump = True
+        output = os.path.join(ram_dump.outdir, scandump_file_prefix)
+        input = os.path.join(ram_dump.outdir, "vv_msg_4_header.bin")
+        print_out_str(
+            'Parsing scandump context start {0:x} end {1:x} {2} {3}'.format(start, end, output, input))
+        if ram_dump.arm64:
+            arch = "aarch64"
+        header_bin = ram_dump.open_file(input)
+        it = range(start, end)
+        for i in it:
+            val = ram_dump.read_byte(i, False)
+            header_bin.write(struct.pack("<B", val))
+        header_bin.close()
+        subprocess.call('python {0} -d {1} -o {2} -f {3}'.format(scan_wrapper_path, input, output, arch))
 
     def parse_cpu_ctx(self, version, start, end, client_id, ram_dump):
         core = client_id - client.MSM_DUMP_DATA_CPU_CTX
@@ -91,7 +126,7 @@ class DebugImage_v2():
         print_out_str(
             'Parsing CPU{2} context start {0:x} end {1:x}'.format(start, end, core))
 
-        regs = TZRegDump_v2()
+        regs = TZRegDump_v2(self.has_scan_dump)
         if regs.init_regs(version, start, end, core, ram_dump) is False:
             print_out_str('!!! Could not get registers from TZ dump')
             return
@@ -201,23 +236,23 @@ class DebugImage_v2():
             self.formats_out.write("\tfield:{0} {1};\toffset:{2};\tsize:{3};\tsigned:{4};\n".format(type_str, field_name, offset, size, signed))
 
     def ftrace_events_func(self, ftrace_list, ram_dump):
-        event_offset = ram_dump.field_offset('struct ftrace_event_call', 'event')
-        fmt_offset = ram_dump.field_offset('struct ftrace_event_call', 'print_fmt')
-        class_offset = ram_dump.field_offset('struct ftrace_event_call', 'class')
-        flags_offset = ram_dump.field_offset('struct ftrace_event_call', 'flags')
+        event_offset = ram_dump.field_offset(self.event_call, 'event')
+        fmt_offset = ram_dump.field_offset(self.event_call,'print_fmt')
+        class_offset = ram_dump.field_offset(self.event_call, 'class')
+        flags_offset = ram_dump.field_offset(self.event_call, 'flags')
         flags = ram_dump.read_word(ftrace_list + flags_offset)
 
         if (ram_dump.kernel_version >= (3, 18) and (flags & TRACE_EVENT_FL_TRACEPOINT)):
-            tp_offset = ram_dump.field_offset('struct ftrace_event_call', 'tp')
+            tp_offset = ram_dump.field_offset(self.event_call, 'tp')
             tp_name_offset = ram_dump.field_offset('struct tracepoint', 'name')
             tp = ram_dump.read_word(ftrace_list + tp_offset)
             name = ram_dump.read_word(tp + tp_name_offset)
         else:
-            name_offset = ram_dump.field_offset('struct ftrace_event_call', 'name')
+            name_offset = ram_dump.field_offset(self.event_call, 'name')
             name = ram_dump.read_word(ftrace_list + name_offset)
 
         type_offset = ram_dump.field_offset('struct trace_event', 'type')
-        fields_offset = ram_dump.field_offset('struct ftrace_event_class', 'fields')
+        fields_offset = ram_dump.field_offset(self.event_class, 'fields')
         common_field_list = ram_dump.address_of('ftrace_common_fields')
         field_next_offset = ram_dump.field_offset('struct ftrace_event_field', 'link')
 
@@ -247,7 +282,7 @@ class DebugImage_v2():
         self.formats_out = formats_out
 
         ftrace_events_list = ram_dump.address_of('ftrace_events')
-        next_offset = ram_dump.field_offset('struct ftrace_event_call', 'list')
+        next_offset = ram_dump.field_offset(self.event_call, 'list')
         list_walker = llist.ListWalker(ram_dump, ftrace_events_list, next_offset)
         list_walker.walk_prev(ftrace_events_list, self.ftrace_events_func, ram_dump)
 
@@ -359,6 +394,52 @@ class DebugImage_v2():
 
         print_out_str('--------')
         print_out_str(p.communicate()[0])
+
+    def sorted_dump_data_clients(self, ram_dump, table, table_num_entries):
+        """ Returns a sorted list of (client_name, func, client_address) where
+
+        client_address --
+            the (struct msm_dump_entry*) which contains a client_id mapping to
+            client_name
+
+        func --
+            registered function in client_types to parse entries of
+            this type
+
+        the return value is sorted in the same order as the client names
+        in client_types
+        """
+
+        dump_entry_id_offset = ram_dump.field_offset(
+            'struct msm_dump_entry', 'id')
+        dump_entry_size = ram_dump.sizeof('struct msm_dump_entry')
+        results = list()
+
+        client_table = dict(client_types)
+        # get first column of client_types
+        client_names = zip(*client_types)[0]
+
+        for j in range(0, table_num_entries):
+            client_entry = table + j * dump_entry_size
+            client_id = ram_dump.read_u32(
+                            client_entry + dump_entry_id_offset, False)
+
+            if (client_id < 0 or
+                    client_id > len(self.dump_data_id_lookup_table)):
+                print_out_str(
+                    '!!! Invalid dump client id found {0:x}'.format(client_id))
+                continue
+
+            client_name = self.dump_data_id_lookup_table[client_id]
+            if client_name not in client_table:
+                print_out_str(
+                    '!!! {0} Does not have an associated function. Skipping!'.format(client_name))
+                continue
+
+            results.append((client_name, client_table[client_name], client_entry))
+
+        results.sort(key=lambda(x): client_names.index(x[0]))
+        return results
 
     def parse_dump_v2(self, ram_dump):
         self.dump_type_lookup_table = ram_dump.gdbmi.get_enum_lookup_table(
@@ -479,53 +560,56 @@ class DebugImage_v2():
                     table_version >> 20, table_version & 0xFFFFF, self.dump_table_id_lookup_table[entry_id],
                     self.dump_type_lookup_table[entry_type], table_num_entries))
 
-            for j in range(0, table_num_entries):
+            lst = self.sorted_dump_data_clients(
+                    ram_dump, entry_addr + dump_table_entry_offset,
+                    table_num_entries)
+            for (client_name, func, client_entry) in lst:
                 print_out_str('--------')
-                client_entry = entry_addr + dump_table_entry_offset + j * dump_entry_size
-                client_id = ram_dump.read_u32(client_entry + dump_entry_id_offset, False)
-                client_type =  ram_dump.read_u32(client_entry + dump_entry_type_offset, False)
-                client_addr = ram_dump.read_word(client_entry + dump_entry_addr_offset, False)
-
-                if client_id < 0 or client_id > len(self.dump_data_id_lookup_table):
-                    print_out_str(
-                        '!!! Invalid dump client id found {0:x}'.format(client_id))
-                    continue
+                client_id = ram_dump.read_u32(
+                                client_entry + dump_entry_id_offset, False)
+                client_type = ram_dump.read_u32(
+                                client_entry + dump_entry_type_offset, False)
+                client_addr = ram_dump.read_word(
+                                client_entry + dump_entry_addr_offset, False)
 
                 if client_type > len(self.dump_type_lookup_table):
                     print_out_str(
                         '!!! Invalid dump client type found {0:x}'.format(client_type))
                     continue
 
-                dump_data_magic = ram_dump.read_u32(client_addr + dump_data_magic_offset, False)
-                dump_data_version = ram_dump.read_u32(client_addr + dump_data_version_offset, False)
-                dump_data_name = ram_dump.read_cstring(client_addr + dump_data_name_offset,
-                                            ram_dump.sizeof('((struct msm_dump_data *)0x0)->name'), False)
-                dump_data_addr = ram_dump.read_dword(client_addr + dump_data_addr_offset, False)
-                dump_data_len = ram_dump.read_dword(client_addr + dump_data_len_offset, False)
+                dump_data_magic = ram_dump.read_u32(
+                                client_addr + dump_data_magic_offset, False)
+                dump_data_version = ram_dump.read_u32(
+                                client_addr + dump_data_version_offset, False)
+                dump_data_name = ram_dump.read_cstring(
+                        client_addr + dump_data_name_offset,
+                        ram_dump.sizeof('((struct msm_dump_data *)0x0)->name'),
+                        False)
+                dump_data_addr = ram_dump.read_dword(
+                                    client_addr + dump_data_addr_offset, False)
+                dump_data_len = ram_dump.read_dword(
+                                    client_addr + dump_data_len_offset, False)
+                print_out_str('Parsing debug information for {0}. Version: {1} Magic: {2:x} Source: {3}'.format(
+                    client_name, dump_data_version, dump_data_magic,
+                    dump_data_name))
 
-                client_name = self.dump_data_id_lookup_table[client_id]
-                if client_name not in client_table:
-                    print_out_str(
-                         '!!! {0} Does not have an associated function. The parser needs to be updated!'.format(client_name))
-                else:
-                    print_out_str('Parsing debug information for {0}. Version: {1} Magic: {2:x} Source: {3}'.format(
-                       client_name, dump_data_version, dump_data_magic, dump_data_name))
+                if dump_data_magic is None:
+                    print_out_str("!!! Address {0:x} is bogus! Can't parse!".format(
+                                client_addr + dump_data_magic_offset))
+                    continue
 
-                    if dump_data_magic is None:
-                        print_out_str(
-                            "!!! Address {0:x} is bogus! Can't parse!".format(start))
-                        continue
+                if dump_data_magic != MEMDUMPV2_MAGIC:
+                    print_out_str("!!! Magic {0:x} doesn't match! No context will be parsed".format(dump_data_magic))
+                    continue
 
-                    if dump_data_magic != MEMDUMPV2_MAGIC:
-                        print_out_str(
-                        "!!! Magic {0:x} doesn't match! No context will be parsed".format(dump_data_magic))
-                        continue
+                getattr(DebugImage_v2, func)(
+                    self, dump_data_version, dump_data_addr,
+                    dump_data_addr + dump_data_len, client_id, ram_dump)
 
-                    func = client_table[client_name]
-                    getattr(DebugImage_v2, func)(self, dump_data_version, dump_data_addr, dump_data_addr + dump_data_len,
-                                                 client_id, ram_dump)
-
-            self.qdss.dump_all(ram_dump)
+            self.qdss.dump_standard(ram_dump)
+            if not ram_dump.skip_qdss_bin:
+                self.qdss.save_etf_bin(ram_dump)
+                self.qdss.save_etr_bin(ram_dump)
             if ram_dump.qtf:
                 self.parse_qtf(ram_dump)
             if ram_dump.dcc:
