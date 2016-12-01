@@ -577,7 +577,8 @@ class RamDump():
 
         self.kimage_vaddr = self.va_start + self.kasan_shadow_size + \
             modules_vsize
-
+        if self.kaslr_offset is not None:
+            self.kimage_vaddr = self.kimage_vaddr + self.kaslr_offset
         self.modules_end = self.page_offset
         self.kimage_voffset = self.address_of("kimage_voffset")
         if self.kimage_voffset is not None:
