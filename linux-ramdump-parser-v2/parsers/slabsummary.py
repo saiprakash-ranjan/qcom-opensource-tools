@@ -10,7 +10,7 @@
 # GNU General Public License for more details.
 
 import math
-
+import operator
 from mm import pfn_to_page
 from parser_util import register_parser, RamParser
 
@@ -55,6 +55,8 @@ class Slabinfo_summary(RamParser):
     # Currently with assumption there is only one numa node
     def print_slab_summary(self, slab_out):
         total_freeobjects = 0
+        slab_summary = {}
+        nCounter = 0
         original_slab = self.ramdump.address_of('slab_caches')
         cpu_present_bits_addr = self.ramdump.address_of('cpu_present_bits')
         cpu_present_bits = self.ramdump.read_word(cpu_present_bits_addr)
@@ -130,11 +132,18 @@ class Slabinfo_summary(RamParser):
             slab_size = int(math.pow(2, page_order + PAGE_SHIFT))
             slab_size = slab_size / 1024
             slab = self.ramdump.read_word(slab + slab_list_offset)
+            slab_summary[nCounter] = [
+                    slab_name, obj_size,
+                    total_allocated, nr_total_objects,
+                    (objsize_w_metadata * nr_total_objects)/1024,
+                    num_slabs, slab_size]
+            nCounter += 1
+        sorted_summary = sorted(slab_summary.values(),
+                                key=operator.itemgetter(4), reverse=True)
+        for val in sorted_summary:
             slab_out.write(format_string.format(
-                                slab_name, obj_size, total_allocated,
-                                nr_total_objects,
-                                (objsize_w_metadata * nr_total_objects)/1024,
-                                num_slabs, slab_size))
+                                val[0], val[1], val[2], val[3], val[4],
+                                val[5], val[6]))
 
     def parse(self):
         slab_out = self.ramdump.open_file('slabsummary.txt')
