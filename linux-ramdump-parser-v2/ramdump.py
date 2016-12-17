@@ -803,7 +803,7 @@ class RamDump():
         return False
 
     def create_t32_launcher(self):
-        out_path = self.outdir
+        out_path = os.path.abspath(self.outdir)
 
         t32_host_system = self.t32_host_system or platform.system()
 
@@ -822,10 +822,14 @@ class RamDump():
         launch_config.write('PBI=SIM\n')
         launch_config.write('\n')
         launch_config.write('SCREEN=\n')
-        launch_config.write('FONT=SMALL\n')
+        if t32_host_system != 'Linux':
+            launch_config.write('FONT=SMALL\n')
+        else:
+            launch_config.write('FONT=LARGE\n')
         launch_config.write('HEADER=Trace32-ScorpionSimulator\n')
         launch_config.write('\n')
-        launch_config.write('PRINTER=WINDOWS\n')
+        if t32_host_system != 'Linux':
+            launch_config.write('PRINTER=WINDOWS\n')
         launch_config.write('\n')
         launch_config.write('RCL=NETASSIST\n')
         launch_config.write('PACKLEN=1024\n')
@@ -927,7 +931,8 @@ class RamDump():
         startup_script.close()
 
         if t32_host_system != 'Linux':
-            t32_bat = open(out_path + '/launch_t32.bat', 'wb')
+            launch_file = os.path.join(out_path, 'launch_t32.bat')
+            t32_bat = open(launch_file, 'wb')
             if self.arm64:
                 t32_binary = 'C:\\T32\\bin\\windows64\\t32MARM64.exe'
             elif is_cortex_a53:
@@ -936,22 +941,23 @@ class RamDump():
                 t32_binary = 'c:\\t32\\t32MARM.exe'
             t32_bat.write(('start '+ t32_binary + ' -c ' + out_path + '/t32_config.t32, ' +
                           out_path + '/t32_startup_script.cmm').encode('ascii', 'ignore'))
+            t32_bat.close()
         else:
-            t32_bat = open(out_path + '/launch_t32.sh', 'wb')
+            launch_file = os.path.join(out_path, 'launch_t32.sh')
+            t32_sh = open(launch_file, 'wb')
             if self.arm64:
                 t32_binary = '/opt/t32/bin/pc_linux64/t32marm64-qt'
             elif is_cortex_a53:
                 t32_binary = '/opt/t32/bin/pc_linux64/t32marm-qt'
             else:
                 t32_binary = '/opt/t32/bin/pc_linux64/t32marm-qt'
-            t32_bat.write('#!/bin/sh\n\n')
-            t32_bat.write('cd $(dirname $0)\n')
-            t32_bat.write('{} -c t32_config.t32, t32_startup_script.cmm &\n'.format(t32_binary))
-            os.chmod(out_path + '/launch_t32.sh', stat.S_IRWXU)
+            t32_sh.write('#!/bin/sh\n\n')
+            t32_sh.write('{0} -c {1}/t32_config.t32, {1}/t32_startup_script.cmm &\n'.format(t32_binary, out_path))
+            t32_sh.close()
+            os.chmod(launch_file, stat.S_IRWXU)
 
-        t32_bat.close()
         print_out_str(
-            '--- Created a T32 Simulator launcher (run {0}/launch_t32.bat)'.format(out_path))
+            '--- Created a T32 Simulator launcher (run {})'.format(launch_file))
 
     def read_tz_offset(self):
         if self.tz_addr == 0:
