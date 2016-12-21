@@ -27,6 +27,7 @@ from print_out import print_out_str, print_out_exception
 from qdss import QDSSDump
 from watchdog_v2 import TZRegDump_v2
 from cachedumplib import lookup_cache_type
+from tlbdumplib import lookup_tlb_type
 from vsens import VsensData
 
 MEMDUMPV2_MAGIC = 0x42445953
@@ -58,8 +59,8 @@ class client(object):
 client_types = [
     ('MSM_DUMP_DATA_SCANDUMP', 'parse_scandump'),
     ('MSM_DUMP_DATA_CPU_CTX', 'parse_cpu_ctx'),
-    ('MSM_DUMP_DATA_L1_INST_TLB', 'parse_l1_inst_tlb'),
-    ('MSM_DUMP_DATA_L1_DATA_TLB', 'parse_l1_data_tlb'),
+    ('MSM_DUMP_DATA_L1_INST_TLB', 'parse_tlb_common'),
+    ('MSM_DUMP_DATA_L1_DATA_TLB', 'parse_tlb_common'),
     ('MSM_DUMP_DATA_L1_INST_CACHE', 'parse_cache_common'),
     ('MSM_DUMP_DATA_L1_DATA_CACHE', 'parse_cache_common'),
     ('MSM_DUMP_DATA_L2_CACHE', 'parse_cache_common'),
@@ -211,6 +212,23 @@ class DebugImage_v2():
             print_out_str('!!! Unhandled exception while running {0}'.format(client_name))
             print_out_exception()
         outfile.close()
+
+    def parse_tlb_common(self, version, start, end, client_id, ramdump):
+        client_name = self.dump_data_id_lookup_table[client_id]
+        core = client_id & 0xF
+        filename = '{0}_0x{1:x}'.format(client_name, core)
+        outfile = ramdump.open_file(filename)
+        cache_type = lookup_tlb_type(ramdump.hw_id, client_id, version)
+        try:
+            cache_type.parse(start, end, ramdump, outfile)
+        except NotImplementedError:
+            print_out_str('TLB dumping not supported for %s on this target'
+                          % client_name)
+        except:
+            print_out_str('!!! Unhandled exception while running {0}'.format(client_name))
+            print_out_exception()
+        outfile.close()
+
 
     def ftrace_field_func(self, common_list, ram_dump):
         name_offset = ram_dump.field_offset('struct ftrace_event_field', 'name')
