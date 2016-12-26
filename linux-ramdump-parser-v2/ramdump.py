@@ -547,6 +547,12 @@ class RamDump():
             self.ebi_start = self.ebi_files[0][1]
         if self.phys_offset is None:
             self.get_hw_id()
+
+        if self.kaslr_offset is None:
+            self.get_kaslr_offset()
+            if self.kaslr_offset is not None:
+                self.gdbmi.kaslr_offset = self.kaslr_offset
+
         if options.phys_offset is not None:
             print_out_str(
                 '[!!!] Phys offset was set to {0:x}'.format(\
@@ -968,6 +974,18 @@ class RamDump():
         else:
             return self.read_word(self.tz_addr, False)
 
+    def get_kaslr_offset(self):
+        if(self.kaslr_addr is None):
+            print_out_str('!!!! Kaslr addr is not provided.')
+        else:
+            kaslr_magic = self.read_u32(self.kaslr_addr, False)
+            if kaslr_magic != 0xdead4ead:
+                print_out_str('!!!! Kaslr magic does not match.')
+                self.kaslr_offset = None
+            else:
+                self.kaslr_offset = self.read_u64(self.kaslr_addr + 4, False)
+                print_out_str("The kaslr_offset extracted is: " + str(hex(self.kaslr_offset)))
+
     def get_hw_id(self, add_offset=True):
         socinfo_format = -1
         socinfo_id = -1
@@ -1054,6 +1072,7 @@ class RamDump():
         self.hw_id = board.board_num
         self.cpu_type = board.cpu
         self.imem_fname = board.imem_file_name
+        self.kaslr_addr = board.kaslr_addr
         return True
 
     def resolve_virt(self, virt_or_name):
