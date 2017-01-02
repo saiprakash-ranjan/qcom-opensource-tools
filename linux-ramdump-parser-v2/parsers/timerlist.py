@@ -99,6 +99,33 @@ class TimerList(RamParser) :
     def get_timer_list(self):
         self.output_file.write("Timer List Dump\n\n")
 
+        tvec_base_deferral_addr = self.ramdump.address_of('tvec_base_deferrable')
+        timer_jiffies_addr = tvec_base_deferral_addr + self.ramdump.field_offset('struct tvec_base', 'timer_jiffies')
+        next_timer_addr = tvec_base_deferral_addr + self.ramdump.field_offset('struct tvec_base', 'next_timer')
+
+        timer_jiffies = self.ramdump.read_word(timer_jiffies_addr)
+        next_timer = self.ramdump.read_word(next_timer_addr)
+        active_timers_offset = self.ramdump.field_offset('struct tvec_base', 'active_timers')
+        if active_timers_offset is not None:
+                active_timers_addr = tvec_base_deferral_addr + self.ramdump.field_offset('struct tvec_base', 'active_timers')
+                active_timers = self.ramdump.read_word(active_timers_addr)
+        else:
+                active_timers = "NA"
+
+        title = "(deferrable_base: {0:x} ".format(tvec_base_deferral_addr)
+        title += "timer_jiffies: {0} next_timer: {1} active_timers: {2})\n".format(timer_jiffies, next_timer, active_timers)
+        self.output_file.write("-" * len(title) + "\n")
+        self.output_file.write(title)
+        self.output_file.write("-" * len(title) + "\n\n")
+
+        for vec in sorted(self.vectors):
+            self.output = []
+            if self.timer_42:
+                  self.iterate_vec_v2(vec, tvec_base_deferral_addr)
+            else:
+                 self.iterate_vec(vec, tvec_base_deferral_addr)
+            self.print_vec(vec)
+
         tvec_bases_addr = self.ramdump.address_of('tvec_bases')
 
         for cpu in range(0, self.ramdump.get_num_cpus()):
