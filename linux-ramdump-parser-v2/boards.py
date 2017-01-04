@@ -429,11 +429,11 @@ class Board8998(Board):
         self.wdog_addr = 0x146BF658
         self.imem_file_name = 'OCIMEM.BIN'
 
-class BoardFalcon(Board):
+class Board660(Board):
     def __init__(self, socid):
-        super(BoardFalcon, self).__init__()
+        super(Board660, self).__init__()
         self.socid = socid
-        self.board_num = "falcon"
+        self.board_num = "660"
         self.cpu = 'CORTEXA53'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6000000
@@ -442,11 +442,11 @@ class BoardFalcon(Board):
         self.wdog_addr = 0x146BF658
         self.imem_file_name = 'OCIMEM.BIN'
 
-class BoardTriton(Board):
+class Board630(Board):
     def __init__(self, socid):
-        super(BoardTriton, self).__init__()
+        super(Board630, self).__init__()
         self.socid = socid
-        self.board_num = "triton"
+        self.board_num = "630"
         self.cpu = 'CORTEXA53'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6000000
@@ -657,9 +657,13 @@ boards.append(BoardCalifornium(socid=279))
 boards.append(BoardCobalt(socid=292))
 boards.append(Board8998(socid=292))
 
-boards.append(BoardFalcon(socid=317))
+boards.append(Board660(socid=317))
+boards.append(Board660(socid=324))
+boards.append(Board660(socid=325))
+boards.append(Board660(socid=326))
 
-boards.append(BoardTriton(socid=318))
+boards.append(Board630(socid=318))
+boards.append(Board630(socid=327))
 
 def get_supported_boards():
     """ Called by other part of the code to get a list of boards """
