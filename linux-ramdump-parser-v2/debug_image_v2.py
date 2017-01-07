@@ -335,8 +335,12 @@ class DebugImage_v2():
         qtf_dir = os.path.join(out_dir, 'qtf')
         workspace = os.path.join(qtf_dir, 'qtf.workspace')
         qtf_out = os.path.join(out_dir, 'qtf.txt')
-        chipset = 'msm' + str(ram_dump.hw_id)
+        chipset = 'msm' + ram_dump.hw_id
         hlos = 'LA'
+
+        #Temp change to handle descripancy between tools usage
+        if chipset == 'msmcobalt':
+            chipset = 'msm8998'
 
         # Resolve any port collisions with other running qtf_server instances
         for tries in range(max_tries):
