@@ -415,6 +415,20 @@ class BoardCobalt(Board):
         self.wdog_addr = 0x146BF658
         self.imem_file_name = 'OCIMEM.BIN'
 
+class Board8998(Board):
+    def __init__(self, socid):
+        super(Board8998, self).__init__()
+        self.socid = socid
+        self.board_num = "8998"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6000000
+        self.phys_offset = 0x80000000
+        self.imem_start = 0x14680000
+        self.kaslr_addr = 0x146bf6d0
+        self.wdog_addr = 0x146BF658
+        self.imem_file_name = 'OCIMEM.BIN'
+
 class BoardFalcon(Board):
     def __init__(self, socid):
         super(BoardFalcon, self).__init__()
@@ -641,6 +655,7 @@ boards.append(Board8920(socid=320))
 boards.append(BoardCalifornium(socid=279))
 
 boards.append(BoardCobalt(socid=292))
+boards.append(Board8998(socid=292))
 
 boards.append(BoardFalcon(socid=317))
 
