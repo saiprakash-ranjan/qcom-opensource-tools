@@ -1072,7 +1072,10 @@ class RamDump():
         self.hw_id = board.board_num
         self.cpu_type = board.cpu
         self.imem_fname = board.imem_file_name
-        self.kaslr_addr = board.kaslr_addr
+        if hasattr(board, 'kaslr_addr'):
+            self.kaslr_addr = board.kaslr_addr
+        else:
+            self.kaslr_addr = None
         return True
 
     def resolve_virt(self, virt_or_name):
