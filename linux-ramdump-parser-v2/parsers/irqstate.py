@@ -70,6 +70,50 @@ class IrqParse(RamParser):
                 print_out_str(
                     '{0:4} {1} {2:30} {3:10}'.format(irqnum, irq_stats_str, name, chip_name))
 
+    def shift_to_maxindex(self, shift):
+        radix_tree_map_shift = 6
+        radix_tree_map_size = 1 << radix_tree_map_shift
+        return (radix_tree_map_size << shift) - 1
+
+    def is_internal_node(self, addr):
+        radix_tree_entry_mask = 0x3
+        radix_tree_internal_node = 0x1
+        return (addr & radix_tree_entry_mask) == radix_tree_internal_node
+
+    def entry_to_node(self, addr):
+        return addr & 0xfffffffffffffffe
+
+    def radix_tree_lookup_element_v2(self, ram_dump, root_addr, index):
+        rnode_offset = ram_dump.field_offset('struct radix_tree_root', 'rnode')
+        rnode_shift_offset = ram_dump.field_offset('struct radix_tree_node', 'shift')
+        slots_offset = ram_dump.field_offset('struct radix_tree_node', 'slots')
+        pointer_size = ram_dump.sizeof('struct radix_tree_node *')
+        maxindex = 0
+        # if CONFIG_BASE_SMALL=0: radix_tree_map_shift = 6
+        radix_tree_map_shift = 6
+        radix_tree_map_mask = 0x3f
+
+        rnode_addr = ram_dump.read_word(root_addr + rnode_offset)
+        if self.is_internal_node(rnode_addr):
+            node_addr = self.entry_to_node(rnode_addr)
+            shift = ram_dump.read_byte(node_addr + rnode_shift_offset)
+            maxindex = self.shift_to_maxindex(shift)
+
+        if index > maxindex:
+            return None
+
+        while self.is_internal_node(rnode_addr):
+            parent_addr = self.entry_to_node(rnode_addr)
+            parent_shift = ram_dump.read_byte(parent_addr + rnode_shift_offset)
+            offset = (index >> parent_shift) & radix_tree_map_mask
+            rnode_addr = ram_dump.read_word(parent_addr + slots_offset +
+                (offset * pointer_size))
+
+        if rnode_addr is 0:
+            return None
+
+        return rnode_addr
+
     def radix_tree_lookup_element(self, ram_dump, root_addr, index):
         rnode_offset = ram_dump.field_offset('struct radix_tree_root', 'rnode')
         if (ram_dump.kernel_version[0], ram_dump.kernel_version[1]) >= (3, 18):
@@ -140,11 +184,19 @@ class IrqParse(RamParser):
         if nr_irqs > 50000:
             return
 
+        major, minor, patch = ram_dump.kernel_version
         for i in range(0, nr_irqs):
-            irq_desc = self.radix_tree_lookup_element(
-                ram_dump, irq_desc_tree, i)
+
+            if (major, minor) >= (4, 9):
+                irq_desc = self.radix_tree_lookup_element_v2(
+                    ram_dump, irq_desc_tree, i)
+            else:
+                irq_desc = self.radix_tree_lookup_element(
+                    ram_dump, irq_desc_tree, i)
+
             if irq_desc is None:
                 continue
+
             irqnum = ram_dump.read_int(irq_desc + irq_data_offset + irq_num_offset)
             irqcount = ram_dump.read_int(irq_desc + irq_count_offset)
             action = ram_dump.read_word(irq_desc + irq_action_offset)
