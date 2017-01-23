@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -452,8 +452,7 @@ class DebugImage_v2():
             'msm_dump_table_ids', MAX_NUM_ENTRIES)
         self.dump_data_id_lookup_table = ram_dump.gdbmi.get_enum_lookup_table(
             'msm_dump_data_ids', MAX_NUM_ENTRIES)
-        cpu_present_bits = ram_dump.read_word('cpu_present_bits')
-        cpus = bin(cpu_present_bits).count('1')
+        cpus = ram_dump.get_num_cpus()
         # per cpu entries
         for i in range(1, cpus):
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2015, 2017 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -20,9 +20,7 @@ class IrqParse(RamParser):
         print_out_str(
             '=========================== IRQ STATE ===============================')
         per_cpu_offset_addr = ram_dump.address_of('__per_cpu_offset')
-        cpu_present_bits_addr = ram_dump.address_of('cpu_present_bits')
-        cpu_present_bits = ram_dump.read_word(cpu_present_bits_addr)
-        cpus = bin(cpu_present_bits).count('1')
+        cpus = ram_dump.get_num_cpus()
         irq_desc = ram_dump.address_of('irq_desc')
         foo, irq_desc_size = ram_dump.unwind_lookup(irq_desc, 1)
         h_irq_offset = ram_dump.field_offset('struct irq_desc', 'handle_irq')

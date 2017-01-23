@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -1399,8 +1399,14 @@ class RamDump():
 
     def get_num_cpus(self):
         """Gets the number of CPUs in the system."""
+        major, minor, patch = self.kernel_version
         cpu_present_bits_addr = self.address_of('cpu_present_bits')
         cpu_present_bits = self.read_word(cpu_present_bits_addr)
+
+        if (major, minor) >= (4, 5):
+            cpu_present_bits_addr = self.address_of('__cpu_present_mask')
+            bits_offset = self.field_offset('struct cpumask', 'bits')
+            cpu_present_bits = self.read_word(cpu_present_bits_addr + bits_offset)
         return bin(cpu_present_bits).count('1')
 
     def iter_cpus(self):
