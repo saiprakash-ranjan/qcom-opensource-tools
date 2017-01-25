@@ -95,7 +95,6 @@ class DebugImage_v2():
         else:
             self.event_call = 'struct ftrace_event_call'
             self.event_class = 'struct ftrace_event_class'
-        self.has_scan_dump = False
 
     def parse_scandump(self, version, start, end, client_id, ram_dump):
         scandump_file_prefix = "scandump"
@@ -104,8 +103,6 @@ class DebugImage_v2():
         except AttributeError:
             print_out_str('Could not find scandump_parser_path . Please define scandump_parser_path in local_settings')
             return
-        if client_id == client.MSM_DUMP_DATA_SCANDUMP:
-            self.has_scan_dump = True
         output = os.path.join(ram_dump.outdir, scandump_file_prefix)
         input = os.path.join(ram_dump.outdir, "vv_msg_4_header.bin")
         print_out_str(
@@ -126,7 +123,7 @@ class DebugImage_v2():
         print_out_str(
             'Parsing CPU{2} context start {0:x} end {1:x}'.format(start, end, core))
 
-        regs = TZRegDump_v2(self.has_scan_dump)
+        regs = TZRegDump_v2()
         if regs.init_regs(version, start, end, core, ram_dump) is False:
             print_out_str('!!! Could not get registers from TZ dump')
             return
