@@ -26,7 +26,26 @@ SLUB_RED_ACTIVE = 0xcc
 POISON_INUSE = 0x5a
 POISON_FREE = 0x6b
 POISON_END = 0xa5
-g_printfreeobjStack = False
+
+FREQUENCY = 0
+CALLSTACK_INDEX = 1
+CALL_STACK = 2
+TRACK_TYPE = 3
+
+# g_Optimization - if false will print :
+# 1. Free objects callstacks
+# 2. Object address range of allocated and FREE objects
+g_Optimization = True
+
+# When optimization is true, below two parameters will be used
+# 1. MAX_NO_OF_CALLSTACK_TO_PRINT : Maximum number of callstacks to print
+# in a slab.
+# 2. CALLSTACK_FREQ_IN_SLAB: Print callstack only if occurance of
+# each unique callstack in a slab is more than particular
+# value(CALLSTACK_FREQ_IN_SLAB)
+
+MAX_NO_OF_CALLSTACK_TO_PRINT = 5
+CALLSTACK_FREQ_IN_SLAB = 10
 
 
 class kmem_cache(object):
@@ -89,6 +108,8 @@ class struct_member_offset(object):
                             'struct page', 'freelist')
         self.sizeof_struct_track = ramdump.sizeof(
                                             'struct track')
+        self.cpu_cache_page_offset = ramdump.field_offset(
+                            'struct kmem_cache_cpu', 'page')
         self.sizeof_void_pointer = ramdump.sizeof(
                                              "void *")
         self.sizeof_unsignedlong = ramdump.sizeof(
@@ -131,7 +152,7 @@ class Slabinfo(RamParser):
             p = obj + slab.inuse
         return p + track_type * track_size
 
-    def extract_callstack(self, ramdump, a, stack, out_file):
+    def extract_callstack(self, ramdump, stack, out_file):
         for a in stack:
             look = ramdump.unwind_lookup(a)
             if look is None:
@@ -159,28 +180,17 @@ class Slabinfo(RamParser):
         if stackstr_len == 0:
             return
         try:
-            self.g_allstacks[stackstr][0] += 1
-            if self.g_allstacks[stackstr][0] > 1:
+            self.g_allstacks[stackstr][FREQUENCY] += 1
+            if self.g_allstacks[stackstr][FREQUENCY] > 1:
                 return
-            self.extract_callstack(self.ramdump, a, stack, out_file)
         except KeyError:
-            if g_printfreeobjStack is False:
+            if g_Optimization is True:
                 if track_type != 0:
-                    # if free object and g_printfreeobjStack is False,
+                    # if free object and g_Optimization is True,
                     # ignore it for printing its call stack
                     return
-            if track_type == 1:
-                out_file.write(
-                        "FREE Call stack index:{0}".format(
-                                                            self.g_index))
-            else:
-                out_file.write(
-                        "ALLOCATED Call stack index:{0}".format(
-                                                                self.g_index))
-            self.extract_callstack(self.ramdump, a, stack, out_file)
-            self.g_allstacks[stackstr] = [1, self.g_index]
+            self.g_allstacks[stackstr] = [1, self.g_index, stack, track_type]
             self.g_index += 1
-            out_file.write('\n')
 
     def print_slab(
                 self, ramdump, slab, page,
@@ -206,13 +216,41 @@ class Slabinfo(RamParser):
                         page, out_file, out_slabs_addrs)
             p = p + slab.size
 
-    def printsummary(self, slabs_output_summary):
+    def printsummary(self, slabs_output_summary, slab_out):
+        nCounter = 0
+        write_output = False
+        str = " Call stack index:{0} frequency: {1}\n"
         sorted_val = sorted(
                             self.g_allstacks.items(),
                             key=operator.itemgetter(1), reverse=True)
-        for key, value in sorted_val:
+
+        if g_Optimization is False:
+            write_output = True
+
+        for key, val in sorted_val:
+            if g_Optimization is True:
+                if nCounter >= MAX_NO_OF_CALLSTACK_TO_PRINT:
+                    break
+                if(
+                    (nCounter < MAX_NO_OF_CALLSTACK_TO_PRINT)
+                        and (val[FREQUENCY] > CALLSTACK_FREQ_IN_SLAB)):
+                        write_output = True
+                else:
+                        write_output = False
+            nCounter = nCounter + 1
+            if write_output is True:
+                if val[TRACK_TYPE] == 1:  # free object
+                    slab_out.write(
+                        "\nFREE" + str.format(
+                                val[CALLSTACK_INDEX], val[FREQUENCY]))
+                else:  # allocated object
+                    slab_out.write(
+                        "\nALLOCATED" + str.format(
+                                val[CALLSTACK_INDEX], val[FREQUENCY]))
+                self.extract_callstack(self.ramdump, val[CALL_STACK], slab_out)
             slabs_output_summary.write(
-                " stack index:{0} frequency:{1}\n".format(value[1], value[0]))
+                " stack index:{0} frequency:{1}\n".format(
+                        val[CALLSTACK_INDEX], val[FREQUENCY]))
 
     def print_slab_page_info(
                 self, ramdump, slab_obj, slab_node, start,
@@ -239,29 +277,31 @@ class Slabinfo(RamParser):
             page = self.ramdump.read_word(page + g_offsetof.page_lru)
 
     def print_per_cpu_slab_info(
-            self, ramdump, slab, slab_node, start, out_file, map_fn):
+            self, ramdump, slab, slab_node, start, out_file, map_fn,
+            out_slabs_addrs):
         page = self.ramdump.read_word(start)
         if page == 0:
             return
         if page is None:
             return
-        page_addr = page_address(self.ramdump, page)
         self.print_slab(
-            self.ramdump, page_addr, slab, page, out_file, map_fn)
+            self.ramdump, slab, page, out_file, map_fn, out_slabs_addrs)
 
     def print_all_objects(
-            self, ramdump, p, free, slab, page, out_file, out_slabs_addrs):
+        self, ramdump, p, free, slab, page,
+            out_file, out_slabs_addrs):
 
-        if free:
-            out_slabs_addrs.write(
-                '\n   Object {0:x}-{1:x} FREE'.format(
+        if g_Optimization is False:
+            if free:
+                out_slabs_addrs.write(
+                    '\n   Object {0:x}-{1:x} FREE'.format(
+                                        p, p + slab.size))
+            else:
+                out_slabs_addrs.write(
+                    '\n   Object {0:x}-{1:x} ALLOCATED'.format(
                                     p, p + slab.size))
-        else:
-            out_slabs_addrs.write(
-                '\n   Object {0:x}-{1:x} ALLOCATED'.format(
-                                p, p + slab.size))
         if self.ramdump.is_config_defined('CONFIG_SLUB_DEBUG_ON'):
-            if g_printfreeobjStack is True:
+            if g_Optimization is False:
                 self.print_track(ramdump, slab, p, 0, out_file)
                 self.print_track(ramdump, slab, p, 1, out_file)
             else:
@@ -285,6 +325,7 @@ class Slabinfo(RamParser):
         slab_name_found = False
         original_slab = self.ramdump.address_of('slab_caches')
         cpus = self.ramdump.get_num_cpus()
+
         offsetof = struct_member_offset(self.ramdump)
         self.initializeOffset()
         slab_list_offset = g_offsetof.kmemcache_list
@@ -296,6 +337,16 @@ class Slabinfo(RamParser):
         slab = self.ramdump.read_word(original_slab)
         slabs_output_summary = self.ramdump.open_file('slabs_output.txt')
         out_slabs_addrs = self.ramdump.open_file('out_slabs_addrs.txt')
+        if g_Optimization is True:
+            msg = (
+                    "To optimize slab traverse time,"
+                    "print of object address are skipped."
+                    " Supply option perf_off in command"
+                    "prompt to print object address as well."
+                    )
+
+            out_slabs_addrs.write(msg)
+
         while slab != original_slab:
             slab = slab - slab_list_offset
             slab_obj = kmem_cache(self.ramdump, slab)
@@ -322,6 +373,9 @@ class Slabinfo(RamParser):
             print_out_str(
                 '\nExtracting slab details of : {0}'.format(
                                                                     slab_name))
+            if g_Optimization is False:
+                out_slabs_addrs.write(
+                    '\nslab address of : {0}'.format(slab_name))
             cpu_slab_addr = self.ramdump.read_word(
                                         slab + cpu_slab_offset)
             nr_total_objects = self.ramdump.read_structure_field(
@@ -352,8 +406,7 @@ class Slabinfo(RamParser):
                     self.ramdump, slab_obj,
                     slab_node, cpu_slabn_addr + offsetof.cpu_cache_page_offset,
                     slab_out, map_fn)
-
-            self.printsummary(slabs_output_summary)
+            self.printsummary(slabs_output_summary, slab_out)
             self.g_allstacks.clear()
             if slab_name_found is True:
                 break
@@ -362,13 +415,13 @@ class Slabinfo(RamParser):
         slabs_output_summary.close()
 
     def parse(self):
-        global g_printfreeobjStack
+        global g_Optimization
         slabname = None
         for arg in sys.argv:
             if 'slabname=' in arg:
                 k, slabname = arg.split('=')
-            if 'freeobj' in arg:
-                g_printfreeobjStack = True
+            if 'perf_off' in arg:
+                g_Optimization = False
         slab_out = self.ramdump.open_file('slabs.txt')
         self.validate_slab_cache(slab_out, slabname, self.print_all_objects)
         slab_out.close()
