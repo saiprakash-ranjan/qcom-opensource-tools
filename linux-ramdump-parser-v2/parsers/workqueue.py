@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2015, 2017 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -212,9 +212,7 @@ class Workqueues(RamParser):
         worker_pool_size = ram_dump.sizeof('struct worker_pool')
         pending_work_offset = ram_dump.field_offset(
             'struct worker_pool', 'worklist')
-        cpu_present_bits_addr = ram_dump.address_of('cpu_present_bits')
-        cpu_present_bits = ram_dump.read_word(cpu_present_bits_addr)
-        cpus = bin(cpu_present_bits).count('1')
+        cpus = ram_dump.get_num_cpus()
 
         s = '<'
         for a in range(0, 64):

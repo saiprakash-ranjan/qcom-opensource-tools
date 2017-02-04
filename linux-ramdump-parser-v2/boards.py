@@ -401,11 +401,52 @@ class BoardCalifornium(Board):
         self.imem_file_name = 'OCIMEM.BIN'
 
 
+class BoardCobalt(Board):
+    def __init__(self, socid):
+        super(BoardCobalt, self).__init__()
+        self.socid = socid
+        self.board_num = "cobalt"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6000000
+        self.phys_offset = 0x80000000
+        self.imem_start = 0x14680000
+        self.kaslr_addr = 0x146bf6d0
+        self.wdog_addr = 0x146BF658
+        self.imem_file_name = 'OCIMEM.BIN'
+
 class Board8998(Board):
     def __init__(self, socid):
         super(Board8998, self).__init__()
         self.socid = socid
         self.board_num = "8998"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6000000
+        self.phys_offset = 0x80000000
+        self.imem_start = 0x14680000
+        self.kaslr_addr = 0x146bf6d0
+        self.wdog_addr = 0x146BF658
+        self.imem_file_name = 'OCIMEM.BIN'
+
+class Board660(Board):
+    def __init__(self, socid):
+        super(Board660, self).__init__()
+        self.socid = socid
+        self.board_num = "660"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6000000
+        self.phys_offset = 0x80000000
+        self.imem_start = 0x14680000
+        self.wdog_addr = 0x146BF658
+        self.imem_file_name = 'OCIMEM.BIN'
+
+class Board630(Board):
+    def __init__(self, socid):
+        super(Board630, self).__init__()
+        self.socid = socid
+        self.board_num = "630"
         self.cpu = 'CORTEXA53'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6000000
@@ -613,8 +654,16 @@ boards.append(Board8920(socid=320))
 
 boards.append(BoardCalifornium(socid=279))
 
+boards.append(BoardCobalt(socid=292))
 boards.append(Board8998(socid=292))
 
+boards.append(Board660(socid=317))
+boards.append(Board660(socid=324))
+boards.append(Board660(socid=325))
+boards.append(Board660(socid=326))
+
+boards.append(Board630(socid=318))
+boards.append(Board630(socid=327))
 
 def get_supported_boards():
     """ Called by other part of the code to get a list of boards """

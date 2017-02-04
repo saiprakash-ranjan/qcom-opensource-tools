@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -284,9 +284,7 @@ class Slabinfo(RamParser):
     def validate_slab_cache(self, slab_out, input_slabname,  map_fn):
         slab_name_found = False
         original_slab = self.ramdump.address_of('slab_caches')
-        cpu_present_bits_addr = self.ramdump.address_of('cpu_present_bits')
-        cpu_present_bits = self.ramdump.read_word(cpu_present_bits_addr)
-        cpus = bin(cpu_present_bits).count('1')
+        cpus = self.ramdump.get_num_cpus()
         offsetof = struct_member_offset(self.ramdump)
         self.initializeOffset()
         slab_list_offset = g_offsetof.kmemcache_list
