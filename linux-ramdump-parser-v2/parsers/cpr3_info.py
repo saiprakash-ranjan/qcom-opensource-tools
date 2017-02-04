@@ -430,9 +430,19 @@ class CPR3Info(RamParser):
         else:
             cpr_mode = "closed-loop"
 
-        tmp = ""
-        if cpr_controller_name is None:
+        thread_addr = self.ramdump.read_word(
+            ctrl_addr +
+            self.ramdump.field_offset(
+                'struct cpr3_controller', 'thread'))
+        if thread_addr is None:
             return
+        thread_ctrl_addr = self.ramdump.read_word(
+            thread_addr +
+            self.ramdump.field_offset('struct cpr3_thread', 'ctrl'))
+
+        if cpr_controller_name is None or thread_ctrl_addr != ctrl_addr:
+            return
+        tmp = ""
         tmp += "=" * 80 + "\n"
         tmp += 'CPR3 controller state: %s\n' % cpr_controller_name
         tmp += "=" * 80 + "\n"
@@ -464,10 +474,6 @@ class CPR3Info(RamParser):
             self.output.append("\nCPR aggregated voltages:\n")
             self.dump_cpr3_corner_info(aggr_corner_addr, 0, 0, 0)
 
-        thread_addr = self.ramdump.read_word(
-            ctrl_addr +
-            self.ramdump.field_offset(
-                'struct cpr3_controller', 'thread'))
         thread_count = self.ramdump.read_int(
             ctrl_addr +
             self.ramdump.field_offset(

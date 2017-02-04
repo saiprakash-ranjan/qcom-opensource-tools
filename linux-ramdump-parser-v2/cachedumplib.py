@@ -454,6 +454,43 @@ lookuptable[("8998", 0x65, 0x14)] = L1_ICache_KRYO2XX_GOLD()
 lookuptable[("8998", 0x66, 0x14)] = L1_ICache_KRYO2XX_GOLD()
 lookuptable[("8998", 0x67, 0x14)] = L1_ICache_KRYO2XX_GOLD()
 
+# "sdm660"
+lookuptable[("660", 0x80, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("660", 0x81, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("660", 0x82, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("660", 0x83, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("660", 0x84, 0x14)] = L1_DCache_KRYO2XX_GOLD()
+lookuptable[("660", 0x85, 0x14)] = L1_DCache_KRYO2XX_GOLD()
+lookuptable[("660", 0x86, 0x14)] = L1_DCache_KRYO2XX_GOLD()
+lookuptable[("660", 0x87, 0x14)] = L1_DCache_KRYO2XX_GOLD()
+
+lookuptable[("660", 0x60, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("660", 0x61, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("660", 0x62, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("660", 0x63, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("660", 0x64, 0x14)] = L1_ICache_KRYO2XX_GOLD()
+lookuptable[("660", 0x65, 0x14)] = L1_ICache_KRYO2XX_GOLD()
+lookuptable[("660", 0x66, 0x14)] = L1_ICache_KRYO2XX_GOLD()
+lookuptable[("660", 0x67, 0x14)] = L1_ICache_KRYO2XX_GOLD()
+
+# "sdm630"
+lookuptable[("630", 0x80, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("630", 0x81, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("630", 0x82, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("630", 0x83, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("630", 0x84, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("630", 0x85, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("630", 0x86, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+lookuptable[("630", 0x87, 0x14)] = L1_DCache_KRYO2XX_SILVER()
+
+lookuptable[("630", 0x60, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("630", 0x61, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("630", 0x62, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("630", 0x63, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("630", 0x64, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("630", 0x65, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("630", 0x66, 0x14)] = L1_ICache_KYRO2XX_SILVER()
+lookuptable[("630", 0x67, 0x14)] = L1_ICache_KYRO2XX_SILVER()
 
 # 8994
 
