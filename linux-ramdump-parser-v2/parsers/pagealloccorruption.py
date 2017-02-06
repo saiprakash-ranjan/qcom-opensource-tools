@@ -1,4 +1,4 @@
-# Copyright (c) 2012,2014-2015 The Linux Foundation. All rights reserved.
+# Copyright (c) 2012,2014-2017 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -27,6 +27,14 @@ class PageallocCorruption(RamParser):
         cnt = self.ramdump.read_word(memblock_addr + memblock_memory_offset + memblock_memory_cnt_offset)
         region_offset = self.ramdump.field_offset('struct memblock_type', 'regions')
         regions_baseaddr = self.ramdump.read_word(memblock_addr + memblock_memory_offset + region_offset)
+        page_ext_offset = self.ramdump.field_offset(
+                                    'struct mem_section', 'page_ext')
+        page_flags_offset = self.ramdump.field_offset(
+                'struct page_ext', 'flags')
+        mem_section_size = self.ramdump.sizeof("struct mem_section")
+        mem_section = self.ramdump.read_word('mem_section')
+        page_ext_size = self.ramdump.sizeof("struct page_ext")
+
         for r in range(0,cnt) :
             region_addr = regions_baseaddr + r * self.ramdump.sizeof('struct memblock_region')
             start_addr_offset =  self.ramdump.field_offset('struct memblock_region', 'base')
@@ -41,11 +49,23 @@ class PageallocCorruption(RamParser):
             for pfn in range(min_pfn, max_pfn):
                 page = pfn_to_page(self.ramdump, pfn)
                 page_pa = (pfn << 12)
-                # debug_flags value should be 1 for pages having poisoned value 0xaa
-                free = get_debug_flags(self.ramdump, page)
+                if (self.ramdump.kernel_version > (3, 18, 0)):
+                    free = 0
+                    offset = page_pa >> 30
+                    mem_section_0_offset = (
+                        mem_section + (offset * mem_section_size))
+                    page_ext = self.ramdump.read_word(
+                        mem_section_0_offset + page_ext_offset)
+                    temp_page_ext = page_ext + (pfn * page_ext_size)
+                    page_ext_flags = self.ramdump.read_word(
+                        temp_page_ext + page_flags_offset)
+                    # enum PAGE_EXT_DEBUG_POISON ( == 0th bit is set ) for page poisioning
+                    free = page_ext_flags & 1
+                else:
+                    # debug_flags value should be 1 for pages having poisoned value 0xaa
+                    free = get_debug_flags(self.ramdump, page)
 
                 if free == 1:
-                   page_pa = (pfn << 12)
                    flag = 0;
                    for i in range(0,1024):
                        readval = self.ramdump.read_u32(page_pa+i*4, False)
