@@ -1,4 +1,4 @@
-# Copyright (c) 2012,2014-2015 The Linux Foundation. All rights reserved.
+# Copyright (c) 2012,2014-2015,2017 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -13,11 +13,13 @@ from print_out import print_out_str
 from parser_util import register_parser, RamParser
 from mm import pfn_to_page, page_buddy
 
+
 @register_parser('--print-pagetracking', 'print page tracking information (if available)')
 class PageTracking(RamParser):
 
     def parse(self):
         if not self.ramdump.is_config_defined('CONFIG_PAGE_OWNER'):
+            print_out_str('CONFIG_PAGE_OWNER not defined')
             return
 
         min_pfn_addr = self.ramdump.address_of('min_low_pfn')
@@ -27,18 +29,37 @@ class PageTracking(RamParser):
         max_pfn = self.ramdump.read_word(
             max_pfn_addr) + (self.ramdump.phys_offset >> 12)
 
-        order_offset = self.ramdump.field_offset('struct page', 'order')
-        flags_offset = self.ramdump.field_offset('struct page', 'flags')
-        trace_offset = self.ramdump.field_offset('struct page', 'trace')
-        nr_entries_offset = self.ramdump.field_offset(
-            'struct stack_trace', 'nr_entries')
-        trace_entries_offset = self.ramdump.field_offset(
-            'struct page', 'trace_entries')
+        if (self.ramdump.kernel_version >= (3, 19, 0)):
+            mem_section = self.ramdump.read_word('mem_section')
+
+        trace_offset = 0
+        nr_entries_offset = 0
+        trace_entries_offset = 0
+        offset = 0
+        struct_holding_trace_entries = 0
+        trace_entry_size = self.ramdump.sizeof("unsigned long")
+
+        if (self.ramdump.kernel_version <= (3, 19, 0)):
+            trace_offset = self.ramdump.field_offset('struct page', 'trace')
+            nr_entries_offset = self.ramdump.field_offset(
+                'struct stack_trace', 'nr_entries')
+            trace_entries_offset = self.ramdump.field_offset(
+                'struct page', 'trace_entries')
+        else:
+            page_ext_offset = self.ramdump.field_offset(
+                                    'struct mem_section', 'page_ext')
+            trace_offset = self.ramdump.field_offset(
+                                    'struct page_ext', 'trace')
+            trace_entries_offset = self.ramdump.field_offset(
+                                'struct page_ext', 'trace_entries')
+            nr_entries_offset = self.ramdump.field_offset(
+                                'struct page_ext', 'nr_entries')
+            mem_section_size = self.ramdump.sizeof("struct mem_section")
+            page_ext_size = self.ramdump.sizeof("struct page_ext")
 
         out_tracking = self.ramdump.open_file('page_tracking.txt')
         out_frequency = self.ramdump.open_file('page_frequency.txt')
         sorted_pages = {}
-        trace_entry_size = self.ramdump.sizeof("unsigned long")
 
         for pfn in range(min_pfn, max_pfn):
             page = pfn_to_page(self.ramdump, pfn)
@@ -46,19 +67,34 @@ class PageTracking(RamParser):
             # validate this page is free
             if page_buddy(self.ramdump, page):
                 continue
+            if (self.ramdump.kernel_version <= (3, 19, 0)):
+                nr_trace_entries = self.ramdump.read_int(
+                    page + trace_offset + nr_entries_offset)
+                struct_holding_trace_entries = page
+            else:
+                phys = pfn << 12
+                if phys is None or phys is 0:
+                    continue
+                offset = phys >> 30
 
-            nr_trace_entries = self.ramdump.read_int(
-                page + trace_offset + nr_entries_offset)
+                mem_section_0_offset = (
+                                mem_section + (offset * mem_section_size))
+                page_ext = self.ramdump.read_word(
+                            mem_section_0_offset + page_ext_offset)
+                temp_page_ext = page_ext + (pfn * page_ext_size)
+                nr_trace_entries = self.ramdump.read_int(
+                                    temp_page_ext + nr_entries_offset)
+                struct_holding_trace_entries = temp_page_ext
 
             if nr_trace_entries <= 0 or nr_trace_entries > 16:
                 continue
 
-            out_tracking.write('PFN 0x{0:x} page 0x{1:x}\n'.format(pfn, page))
+            out_tracking.write('PFN 0x{0:x} page 0x{1:x} \n'.format(pfn, page))
 
             alloc_str = ''
             for i in range(0, nr_trace_entries):
                 addr = self.ramdump.read_word(
-                    page + trace_entries_offset + i * trace_entry_size)
+                    struct_holding_trace_entries + trace_entries_offset + i * trace_entry_size)
 
                 if addr == 0:
                     break
@@ -66,8 +102,8 @@ class PageTracking(RamParser):
                 if look is None:
                     break
                 symname, offset = look
-                unwind_dat = '      [<{0:x}>] {1}+0x{2:x}\n'.format(addr,
-                                                                    symname, offset)
+                unwind_dat = '      [<{0:x}>] {1}+0x{2:x}\n'.format(
+                                        addr, symname, offset)
                 out_tracking.write(unwind_dat)
                 alloc_str = alloc_str + unwind_dat
 
