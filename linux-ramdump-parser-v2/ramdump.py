@@ -1317,6 +1317,9 @@ class RamDump():
         """reads a 4 or 8 byte field from a structure"""
         size = self.sizeof("(({0} *)0)->{1}".format(struct_name, field))
         virt = self.resolve_virt(addr_or_name)
+        if virt is None or size is None:
+            return None
+
         if size == 4:
             return self.read_u32(virt + self.field_offset(struct_name,
                                                                   field))
