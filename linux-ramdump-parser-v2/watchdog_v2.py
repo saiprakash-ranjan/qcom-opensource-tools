@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -11,8 +11,11 @@
 
 import struct
 import re
+
+from scandump_reader import Scandump_v2
 from print_out import print_out_str
 from bitops import is_set
+from parser_util import register_parser, RamParser
 
 # name from tz dump, corresponding T32 register, whether or not to
 # print_out_str (the function name)
@@ -693,7 +696,7 @@ class TZCpuCtx_v2():
 
 class TZRegDump_v2():
 
-    def __init__(self):
+    def __init__(self, has_scan_dump):
         self.core_regs = None
         self.sec_regs = None
         self.neon_regs = {}
@@ -703,6 +706,7 @@ class TZRegDump_v2():
         self.core = 0
         self.status = []
         self.neon_fields = []
+        self.has_scan_dump = has_scan_dump
 
     def dump_all_regs(self, ram_dump):
         coren_regs = ram_dump.open_file('core{0}_regs.cmm'.format(self.core))
@@ -815,8 +819,66 @@ class TZRegDump_v2():
             self.start_addr += struct.calcsize(
                 sysdbg_cpu32_ctxt_regs_type[self.version])
 
+        if self.has_scan_dump:
+           if core > 3:
+              self.scan_data = Scandump_v2(self.core, ram_dump, self.version)
+              self.scan_regs = self.scan_data.prepare_dict()
+        else:
+           print_out_str("No Scan dump data to be processed...")
+
         self.core_regs = TZCpuCtx_v2(self.version, sc_regs,
                                      self.neon_regs, ram_dump)
+
+        if core > 3:
+            if self.has_scan_dump:
+               self.scan_regs['pc'] = self.core_regs.regs['pc']
+               self.core_regs.regs = self.scan_regs
+
         self.sec_regs = TZCpuCtx_v2(self.version, sc_secure,
                                     self.neon_regs, ram_dump)
         return True
+
+
+@register_parser('--watchdog', 'Extracts NS Watchdog related info')
+class Watchdog(RamParser):
+    def parse(self):
+        get_wdog_timing(self.ramdump)
+
+
+def get_wdog_timing(ramdump):
+    jiffies = ramdump.read_word('jiffies')
+    last_jiffies_update = ramdump.read_word('last_jiffies_update')
+    tick_do_timer_cpu = ramdump.read_word('tick_do_timer_cpu')
+    wdog_data_addr = ramdump.read_word('wdog_data')
+    pet_timer_off = ramdump.field_offset(
+        'struct msm_watchdog_data', 'pet_timer')
+    timer_expires_off = ramdump.field_offset('struct timer_list', 'expires')
+    pet_timer_expires = ramdump.read_word(
+        wdog_data_addr + pet_timer_off + timer_expires_off)
+    last_pet_off = ramdump.field_offset('struct msm_watchdog_data', 'last_pet')
+    wdog_last_pet = ramdump.read_word(wdog_data_addr + last_pet_off)
+    timer_expired_off = ramdump.field_offset(
+        'struct msm_watchdog_data', 'timer_expired')
+    pet_timer_expired = ramdump.read_word(wdog_data_addr + timer_expired_off)
+    pet_time_off = ramdump.field_offset('struct msm_watchdog_data', 'pet_time')
+    bark_time_off = ramdump.field_offset(
+        'struct msm_watchdog_data', 'bark_time')
+    pet_time = ramdump.read_int(wdog_data_addr + pet_time_off)
+    bark_time = ramdump.read_int(wdog_data_addr + bark_time_off)
+    print_out_str('Non-secure Watchdog data')
+    print_out_str('Pet time: {0}s'.format(pet_time/1000.0))
+    print_out_str('Bark time: {0}s'.format(bark_time/1000.0))
+    print_out_str('Watchdog last pet: {0}'.format(wdog_last_pet/1000000000.0))
+    if pet_timer_expired == 1:
+        print_out_str('Watchdog pet timer expired')
+    else:
+        print_out_str('Watchdog pet timer not expired')
+        if jiffies > pet_timer_expires:
+            print_out_str('Current jiffies crossed pet_timer expires jiffies')
+    print_out_str('pet_timer_expires: {0}'.format(pet_timer_expires))
+    print_out_str('Current jiffies  : {0}'.format(jiffies))
+    print_out_str(
+        'Timestamp of last timer interrupt(last_jiffies_update): {0}'.format(
+            last_jiffies_update/1000000000.0))
+    print_out_str('Core which updates jiffies(tick_do_timer_cpu): {0}'.format(
+        tick_do_timer_cpu))
