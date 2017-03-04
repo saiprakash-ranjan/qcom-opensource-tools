@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -14,6 +14,7 @@ class Board(object):
     socid = shared id unique to a board type
     board_num = human readable board number indicating the board type
                 (e.g. 8960, 8974)
+    cpu = T32 cpu model
     ram_start = start of the DDR
     imem_start = start of location in which the watchdog address is stored
     smem_addr = start of the shared memory region
@@ -27,15 +28,15 @@ class Board(object):
 
     """
     def __init__(self):
-         self.socid = -1
-         self.board_num = -1
-         self.cpu = 'UNKNOWN'
-         self.ram_start = 0
-         self.imem_start = 0
-         self.smem_addr = 0
-         self.phys_offset = 0
-         self.wdog_addr = 0
-         self.imem_file_name = None
+        self.socid = -1
+        self.board_num = "-1"
+        self.cpu = 'UNKNOWN'
+        self.ram_start = 0
+        self.imem_start = 0
+        self.smem_addr = 0
+        self.phys_offset = 0
+        self.wdog_addr = 0
+        self.imem_file_name = None
 
 class Board8960(Board):
     def __init__(self, socid, board_num, phys_offset=0x80200000, ram_start=0x80000000):
@@ -65,7 +66,7 @@ class Board9615(Board):
     def __init__(self, socid):
         super(Board9615, self).__init__()
         self.socid = socid
-        self.board_num = 9615
+        self.board_num = "9615"
         self.cpu = 'CORTEXA5'
         self.ram_start = 0x40000000
         self.imem_start = 0
@@ -73,7 +74,7 @@ class Board9615(Board):
         self.phys_offset = 0x40800000
 
 class Board8974(Board):
-    def __init__(self, socid, board_num=8974):
+    def __init__(self, socid, board_num="8974"):
         super(Board8974, self).__init__()
         self.socid = socid
         self.board_num = board_num
@@ -89,7 +90,7 @@ class Board9625(Board):
     def __init__(self, socid):
         super(Board9625, self).__init__()
         self.socid = socid
-        self.board_num = 9625
+        self.board_num = "9625"
         self.cpu = 'CORTEXA5'
         self.ram_start = 0x0
         self.imem_start = 0xfe800000
@@ -99,7 +100,7 @@ class Board9625(Board):
         self.imem_file_name = 'OCIMEM.BIN'
 
 class Board8626(Board):
-    def __init__(self, socid, board_num=8626):
+    def __init__(self, socid, board_num="8626"):
         super(Board8626, self).__init__()
         self.socid = socid
         self.board_num = board_num
@@ -112,7 +113,7 @@ class Board8626(Board):
         self.imem_file_name = 'OCIMEM.BIN'
 
 class Board8026LW(Board):
-    def __init__(self, socid, board_num=8026):
+    def __init__(self, socid, board_num="8026"):
         super(Board8026LW, self).__init__()
         self.socid = socid
         self.board_num = board_num
@@ -125,7 +126,7 @@ class Board8026LW(Board):
         self.imem_file_name = 'OCIMEM.BIN'
 
 class Board8610(Board):
-    def __init__(self, socid, board_num=8610):
+    def __init__(self, socid, board_num="8610"):
         super(Board8610, self).__init__()
         self.socid = socid
         self.board_num = board_num
@@ -141,7 +142,7 @@ class Board9635(Board):
     def __init__(self, socid):
         super(Board9635, self).__init__()
         self.socid = socid
-        self.board_num = 9635
+        self.board_num = "9635"
         self.cpu = 'CORTEXA7'
         self.ram_start = 0x0
         self.imem_start = 0xfe800000
@@ -154,7 +155,7 @@ class Board8916(Board):
     def __init__(self, socid, smem_addr):
         super(Board8916, self).__init__()
         self.socid = socid
-        self.board_num = 8916
+        self.board_num = "8916"
         self.cpu = 'CORTEXA7'
         self.ram_start = 0x80000000
         #self.ram_start = 0x0
@@ -168,7 +169,7 @@ class Board8939(Board):
     def __init__(self, socid, smem_addr):
         super(Board8939, self).__init__()
         self.socid = socid
-        self.board_num = 8939
+        self.board_num = "8939"
         self.cpu = 'CORTEXA7'
         self.ram_start = 0x80000000
         self.smem_addr = smem_addr
@@ -181,7 +182,7 @@ class Board8936(Board):
     def __init__(self, socid):
         super(Board8936, self).__init__()
         self.socid = socid
-        self.board_num = 8936
+        self.board_num = "8936"
         self.cpu = 'CORTEXA7'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6300000
@@ -194,7 +195,7 @@ class Board8994(Board):
     def __init__(self, socid):
         super(Board8994, self).__init__()
         self.socid = socid
-        self.board_num = 8994
+        self.board_num = "8994"
         self.cpu = 'CORTEXA57A53'
         self.ram_start = 0x0
         self.smem_addr = 0x6a00000
@@ -207,7 +208,7 @@ class Board8909(Board):
     def __init__(self, socid):
         super(Board8909, self).__init__()
         self.socid = socid
-        self.board_num = 8909
+        self.board_num = "8909"
         self.cpu = 'CORTEXA7'
         self.ram_start = 0x80000000
         self.smem_addr = 0x7d00000
@@ -220,7 +221,7 @@ class Board8908(Board):
     def __init__(self, socid):
         super(Board8908, self).__init__()
         self.socid = socid
-        self.board_num = 8908
+        self.board_num = "8908"
         self.cpu = 'CORTEXA7'
         self.ram_start = 0x80000000
         self.smem_addr = 0x7d00000
@@ -233,7 +234,7 @@ class Board9640(Board):
     def __init__(self, socid):
         super(Board9640, self).__init__()
         self.socid = socid
-        self.board_num = 9640
+        self.board_num = "9640"
         self.cpu = 'CORTEXA7'
         self.ram_start = 0x80000000
         self.smem_addr = 0x7e80000
@@ -246,7 +247,7 @@ class Board8992(Board):
     def __init__(self, socid):
         super(Board8992, self).__init__()
         self.socid = socid
-        self.board_num = 8992
+        self.board_num = "8992"
         self.cpu = 'CORTEXA57A53'
         self.ram_start = 0x0
         self.smem_addr = 0x6a00000
@@ -259,7 +260,7 @@ class Board8929(Board):
     def __init__(self, socid, smem_addr):
         super(Board8929, self).__init__()
         self.socid = socid
-        self.board_num = 8929
+        self.board_num = "8929"
         self.cpu = 'CORTEXA7'
         self.ram_start = 0x80000000
         self.smem_addr = smem_addr
@@ -271,7 +272,7 @@ class Board8996(Board):
     def __init__(self, socid):
         super(Board8996, self).__init__()
         self.socid = socid
-        self.board_num = 8996
+        self.board_num = "8996"
         self.cpu = 'HYDRA'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6000000
@@ -284,7 +285,7 @@ class Board8952(Board):
     def __init__(self, socid):
         super(Board8952, self).__init__()
         self.socid = socid
-        self.board_num = 8952
+        self.board_num = "8952"
         self.cpu = 'CORTEXA53'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6300000
@@ -297,7 +298,7 @@ class Board8976(Board):
     def __init__(self, socid):
         super(Board8976, self).__init__()
         self.socid = socid
-        self.board_num = 8976
+        self.board_num = "8976"
         self.cpu = 'CORTEXA53'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6300000
@@ -310,7 +311,7 @@ class Board9607(Board):
     def __init__(self, socid):
         super(Board9607, self).__init__()
         self.socid = socid
-        self.board_num = 9607
+        self.board_num = "9607"
         self.cpu = 'CORTEXA7'
         self.ram_start = 0x80000000
         self.smem_addr = 0x7d00000
@@ -324,7 +325,7 @@ class Board8937(Board):
     def __init__(self, socid):
         super(Board8937, self).__init__()
         self.socid = socid
-        self.board_num = 8937
+        self.board_num = "8937"
         self.cpu = 'CORTEXA53'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6300000
@@ -333,12 +334,24 @@ class Board8937(Board):
         self.wdog_addr = 0x8600658
         self.imem_file_name = 'OCIMEM.BIN'
 
+class Board8940(Board):
+     def __init__(self, socid):
+         super(Board8940, self).__init__()
+         self.socid = socid
+         self.board_num = "8940"
+         self.cpu = 'CORTEXA53'
+         self.ram_start = 0x80000000
+         self.smem_addr = 0x6300000
+         self.phys_offset = 0x40000000
+         self.imem_start = 0x8600000
+         self.wdog_addr = 0x8600658
+         self.imem_file_name = 'OCIMEM.BIN'
 
 class Board8953(Board):
     def __init__(self, socid):
         super(Board8953, self).__init__()
         self.socid = socid
-        self.board_num = 8953
+        self.board_num = "8953"
         self.cpu = 'CORTEXA53'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6300000
@@ -346,6 +359,102 @@ class Board8953(Board):
         self.imem_start = 0x8600000
         self.wdog_addr = 0x8600658
         self.imem_file_name = 'OCIMEM.BIN'
+
+
+class Board8917(Board):
+    def __init__(self, socid):
+        super(Board8917, self).__init__()
+        self.socid = socid
+        self.board_num = "8917"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6300000
+        self.phys_offset = 0x40000000
+        self.imem_start = 0x8600000
+        self.wdog_addr = 0x8600658
+        self.imem_file_name = 'OCIMEM.BIN'
+
+class Board8920(Board):
+     def __init__(self, socid):
+         super(Board8920, self).__init__()
+         self.socid = socid
+         self.board_num = "8920"
+         self.cpu = 'CORTEXA53'
+         self.ram_start = 0x80000000
+         self.smem_addr = 0x6300000
+         self.phys_offset = 0x40000000
+         self.imem_start = 0x8600000
+         self.wdog_addr = 0x8600658
+         self.imem_file_name = 'OCIMEM.BIN'
+
+class BoardCalifornium(Board):
+    def __init__(self, socid):
+        super(BoardCalifornium, self).__init__()
+        self.socid = socid
+        self.board_num = "californium"
+        self.cpu = 'CORTEXA7'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x7e80000
+        self.phys_offset = 0x80000000
+        self.imem_start = 0x08600000
+        self.wdog_addr = 0x8600658
+        self.imem_file_name = 'OCIMEM.BIN'
+
+
+class BoardCobalt(Board):
+    def __init__(self, socid):
+        super(BoardCobalt, self).__init__()
+        self.socid = socid
+        self.board_num = "cobalt"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6000000
+        self.phys_offset = 0x80000000
+        self.imem_start = 0x14680000
+        self.kaslr_addr = 0x146bf6d0
+        self.wdog_addr = 0x146BF658
+        self.imem_file_name = 'OCIMEM.BIN'
+
+class Board8998(Board):
+    def __init__(self, socid):
+        super(Board8998, self).__init__()
+        self.socid = socid
+        self.board_num = "8998"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6000000
+        self.phys_offset = 0x80000000
+        self.imem_start = 0x14680000
+        self.kaslr_addr = 0x146bf6d0
+        self.wdog_addr = 0x146BF658
+        self.imem_file_name = 'OCIMEM.BIN'
+
+class Board660(Board):
+    def __init__(self, socid):
+        super(Board660, self).__init__()
+        self.socid = socid
+        self.board_num = "660"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6000000
+        self.phys_offset = 0x80000000
+        self.imem_start = 0x14680000
+        self.wdog_addr = 0x146BF658
+        self.imem_file_name = 'OCIMEM.BIN'
+
+class Board630(Board):
+    def __init__(self, socid):
+        super(Board630, self).__init__()
+        self.socid = socid
+        self.board_num = "630"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6000000
+        self.phys_offset = 0x80000000
+        self.imem_start = 0x14680000
+        self.wdog_addr = 0x146BF658
+        self.imem_file_name = 'OCIMEM.BIN'
+
 
 boards = []
 
@@ -441,7 +550,7 @@ boards.append(Board8610(socid=164))
 boards.append(Board8610(socid=165))
 boards.append(Board8610(socid=166))
 
-boards.append(Board8974(socid=178, board_num=8084))
+boards.append(Board8974(socid=178, board_num="8084"))
 
 boards.append(Board9635(socid=187))
 boards.append(Board9635(socid=227))
@@ -450,61 +559,62 @@ boards.append(Board9635(socid=229))
 boards.append(Board9635(socid=230))
 boards.append(Board9635(socid=231))
 
-boards.append(Board8960(socid=87, board_num=8960))
-boards.append(Board8960(socid=122, board_num=8960))
-boards.append(Board8960(socid=123, board_num=8260))
-boards.append(Board8960(socid=124, board_num=8060))
+boards.append(Board8960(socid=87, board_num="8960"))
+boards.append(Board8960(socid=122, board_num="8960"))
+boards.append(Board8960(socid=123, board_num="8260"))
+boards.append(Board8960(socid=124, board_num="8060"))
 
-boards.append(Board8960(socid=244, board_num=8064, phys_offset=0x40200000, ram_start=0x40000000))
-boards.append(Board8960(socid=109, board_num=8064))
-boards.append(Board8960(socid=130, board_num=8064))
-boards.append(Board8960(socid=153, board_num=8064))
+boards.append(Board8960(socid=244, board_num="8064", phys_offset=0x40200000,
+                        ram_start=0x40000000))
+boards.append(Board8960(socid=109, board_num="8064"))
+boards.append(Board8960(socid=130, board_num="8064"))
+boards.append(Board8960(socid=153, board_num="8064"))
 
-boards.append(Board8960(socid=116, board_num=8930))
-boards.append(Board8960(socid=117, board_num=8930))
-boards.append(Board8960(socid=118, board_num=8930))
-boards.append(Board8960(socid=119, board_num=8930))
-boards.append(Board8960(socid=154, board_num=8930))
-boards.append(Board8960(socid=155, board_num=8930))
-boards.append(Board8960(socid=156, board_num=8930))
-boards.append(Board8960(socid=157, board_num=8930))
-boards.append(Board8960(socid=160, board_num=8930))
+boards.append(Board8960(socid=116, board_num="8930"))
+boards.append(Board8960(socid=117, board_num="8930"))
+boards.append(Board8960(socid=118, board_num="8930"))
+boards.append(Board8960(socid=119, board_num="8930"))
+boards.append(Board8960(socid=154, board_num="8930"))
+boards.append(Board8960(socid=155, board_num="8930"))
+boards.append(Board8960(socid=156, board_num="8930"))
+boards.append(Board8960(socid=157, board_num="8930"))
+boards.append(Board8960(socid=160, board_num="8930"))
 
-boards.append(Board8960(socid=120, board_num=8627))
-boards.append(Board8960(socid=121, board_num=8627))
-boards.append(Board8960(socid=138, board_num=8960))
-boards.append(Board8960(socid=139, board_num=8960))
-boards.append(Board8960(socid=140, board_num=8960))
-boards.append(Board8960(socid=141, board_num=8960))
-boards.append(Board8960(socid=142, board_num=8930))
-boards.append(Board8960(socid=143, board_num=8630))
-boards.append(Board8960(socid=144, board_num=8630))
+boards.append(Board8960(socid=120, board_num="8627"))
+boards.append(Board8960(socid=121, board_num="8627"))
+boards.append(Board8960(socid=138, board_num="8960"))
+boards.append(Board8960(socid=139, board_num="8960"))
+boards.append(Board8960(socid=140, board_num="8960"))
+boards.append(Board8960(socid=141, board_num="8960"))
+boards.append(Board8960(socid=142, board_num="8930"))
+boards.append(Board8960(socid=143, board_num="8630"))
+boards.append(Board8960(socid=144, board_num="8630"))
 
 boards.append(Board9615(socid=104))
 boards.append(Board9615(socid=105))
 boards.append(Board9615(socid=106))
 boards.append(Board9615(socid=107))
 
-boards.append(Board8625(socid=88, board_num=8625))
-boards.append(Board8625(socid=89, board_num=8625))
-boards.append(Board8625(socid=96, board_num=8625))
-boards.append(Board8625(socid=90, board_num=8625))
-boards.append(Board8625(socid=91, board_num=8625))
-boards.append(Board8625(socid=92, board_num=8625))
-boards.append(Board8625(socid=97, board_num=8625))
-boards.append(Board8625(socid=98, board_num=8625))
-boards.append(Board8625(socid=99, board_num=8625))
-boards.append(Board8625(socid=100, board_num=8625))
-boards.append(Board8625(socid=101, board_num=8625))
-boards.append(Board8625(socid=102, board_num=8625))
-boards.append(Board8625(socid=103, board_num=8625))
-boards.append(Board8625(socid=127, board_num=8625))
-boards.append(Board8625(socid=128, board_num=8625))
-boards.append(Board8625(socid=129, board_num=8625))
-boards.append(Board8625(socid=131, board_num=8625))
-boards.append(Board8625(socid=132, board_num=8625))
-boards.append(Board8625(socid=133, board_num=8625))
-boards.append(Board8625(socid=135, board_num=8625))
+boards.append(Board8625(socid=88, board_num="8625"))
+boards.append(Board8625(socid=89, board_num="8625"))
+boards.append(Board8625(socid=96, board_num="8625"))
+boards.append(Board8625(socid=90, board_num="8625"))
+boards.append(Board8625(socid=91, board_num="8625"))
+boards.append(Board8625(socid=92, board_num="8625"))
+boards.append(Board8625(socid=97, board_num="8625"))
+boards.append(Board8625(socid=98, board_num="8625"))
+boards.append(Board8625(socid=99, board_num="8625"))
+boards.append(Board8625(socid=100, board_num="8625"))
+boards.append(Board8625(socid=101, board_num="8625"))
+boards.append(Board8625(socid=102, board_num="8625"))
+boards.append(Board8625(socid=103, board_num="8625"))
+boards.append(Board8625(socid=127, board_num="8625"))
+boards.append(Board8625(socid=128, board_num="8625"))
+boards.append(Board8625(socid=129, board_num="8625"))
+boards.append(Board8625(socid=131, board_num="8625"))
+boards.append(Board8625(socid=132, board_num="8625"))
+boards.append(Board8625(socid=133, board_num="8625"))
+boards.append(Board8625(socid=135, board_num="8625"))
 
 boards.append(Board8994(socid=207))
 
@@ -530,7 +640,30 @@ boards.append(Board9607(socid=299))
 boards.append(Board8937(socid=294))
 boards.append(Board8937(socid=295))
 
+boards.append(Board8940(socid=313))
+
 boards.append(Board8953(socid=293))
+boards.append(Board8953(socid=304))
+
+boards.append(Board8917(socid=303))
+boards.append(Board8917(socid=307))
+boards.append(Board8917(socid=308))
+boards.append(Board8917(socid=309))
+
+boards.append(Board8920(socid=320))
+
+boards.append(BoardCalifornium(socid=279))
+
+boards.append(BoardCobalt(socid=292))
+boards.append(Board8998(socid=292))
+
+boards.append(Board660(socid=317))
+boards.append(Board660(socid=324))
+boards.append(Board660(socid=325))
+boards.append(Board660(socid=326))
+
+boards.append(Board630(socid=318))
+boards.append(Board630(socid=327))
 
 def get_supported_boards():
     """ Called by other part of the code to get a list of boards """
