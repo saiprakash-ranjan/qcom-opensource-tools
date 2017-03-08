@@ -1,4 +1,4 @@
-# Copyright (c) 2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -28,26 +28,42 @@ LL_PAGE_MASK = 0xFFFFFFFFF000
 
 LL_AP_BITS = (0x3 << 6)
 LL_CH = (0x1 << 52)
+LL_XN = (0x1 << 54)
+LL_ATTR_INDX = (0x7 << 2)
+LL_SH_BITS = (0x3 << 8)
+
+ATTR_IDX_NONCACHED = 0x0
+ATTR_IDX_CACHE = 0x1
+ATTR_IDX_DEV = 0x2
+
+SH_NON_SHARE = (0x0 << 8)
+SH_RESERVED = (0x1 << 8)
+SH_OUTER_SHARE = (0x2 << 8)
+SH_INNER_SHARE = (0x3 << 8)
 
 LL_AP_RO = (0x3 << 6)
 LL_AP_RW = (0x1 << 6)
 LL_AP_PR_RW = (0x0 << 6)
 LL_AP_PR_RO = (0x2 << 6)
 
-
 class FlatMapping(object):
 
-    def __init__(self, virt, phys=-1, type='[]', size=SZ_4K, mapped=False):
+    def __init__(self, virt, phys=-1, type='[]', size=SZ_4K, attr_indx_str='[]',
+                shareability_str='[]', execute_never_str='[]', mapped=False):
         self.virt = virt
         self.phys = phys
         self.type = type
         self.map_size = size
+        self.attr_indx_str = attr_indx_str
+        self.shareability_str = shareability_str
+        self.execute_never_str = execute_never_str
         self.mapped = mapped
 
 
 class CollapsedMapping(object):
     def __init__(self, virt_start, virt_end, phys_start=-1, phys_end=-1,
-                 map_type='[]', map_size=SZ_4K, mapped=False):
+                map_type='[]', map_size=SZ_4K, attr_indx_str='[]',
+                shareability_str='[]', execute_never_str='[]', mapped=False):
 
         self.virt_start = virt_start
         self.virt_end = virt_end - 1
@@ -55,13 +71,18 @@ class CollapsedMapping(object):
         self.phys_end = phys_end - 1
         self.map_type = map_type
         self.map_size = map_size
+        self.attr_indx_str = attr_indx_str
+        self.shareability_str = shareability_str
+        self.execute_never_str = execute_never_str
         self.mapped = mapped
 
 
 def add_collapsed_mapping(mappings, virt_start, virt_end, phys_start, phys_end,
-                          map_type, map_size, mapped):
+                          map_type, map_size, attr_indx_str, shareability_str,
+                          execute_never_str, mapped):
     map = CollapsedMapping(virt_start, virt_end, phys_start, phys_end,
-                           map_type, map_size, mapped)
+                           map_type, map_size, attr_indx_str, shareability_str,
+                           execute_never_str, mapped)
 
     if virt_start not in mappings:
         mappings[virt_start] = map
@@ -101,7 +122,9 @@ def create_collapsed_mapping(flat_mapping):
                     collapsed_mapping, start_map.virt,
                     map.virt, start_map.phys,
                     start_map.phys + start_map.map_size,
-                    start_map.type, start_map.map_size, start_map.mapped)
+                    start_map.type, start_map.map_size, map.attr_indx_str,
+                    map.shareability_str, map.execute_never_str,
+                    start_map.mapped)
                 start_map = map
 
             elif last_mapping:
@@ -109,14 +132,17 @@ def create_collapsed_mapping(flat_mapping):
                     collapsed_mapping, start_map.virt,
                     0xFFFFFFFFFFFF + 1, start_map.phys,
                     start_map.phys + start_map.map_size,
-                    start_map.type, start_map.map_size, start_map.mapped)
+                    start_map.type, start_map.map_size, map.attr_indx_str,
+                    map.shareability_str, map.execute_never_str,
+                    start_map.mapped)
 
             prev_map = map
     return collapsed_mapping
 
 
-def add_flat_mapping(mappings, fl_idx, sl_idx, tl_idx, ll_idx,
-                     phy_addr, map_type, page_size, mapped):
+def add_flat_mapping(mappings, fl_idx, sl_idx, tl_idx, ll_idx, phy_addr,
+                    map_type, page_size, attr_indx, shareability,
+                    xn_bit, mapped):
     virt = (fl_idx << 39) | (sl_idx << 30) | (tl_idx << 21) | (ll_idx << 12)
     map_type_str = '[R/W]'
 
@@ -127,7 +153,37 @@ def add_flat_mapping(mappings, fl_idx, sl_idx, tl_idx, ll_idx,
     elif map_type == LL_AP_PR_RO:
         map_type_str = '[P RO]'
 
-    map = FlatMapping(virt, phy_addr, map_type_str, page_size, mapped)
+    if shareability != -1:
+        if shareability == SH_NON_SHARE:
+            shareability_str = 'Non-Shareable'
+        if shareability == SH_RESERVED:
+            shareability_str = 'Reserved'
+        if shareability == SH_OUTER_SHARE:
+            shareability_str = 'Outer-Shareable'
+        if shareability == SH_INNER_SHARE:
+            shareability_str = 'Inner-Shareable'
+    else:
+        shareability_str = 'N/A'
+
+    if attr_indx != -1:
+        if attr_indx == ATTR_IDX_NONCACHED:
+            attr_indx_str = 'Non-Cached'
+        if attr_indx == ATTR_IDX_CACHE:
+            attr_indx_str = 'Cached'
+        if attr_indx == ATTR_IDX_DEV:
+            attr_indx_str = 'Device'
+    else:
+        attr_indx_str = 'N/A'
+
+    if xn_bit == 1:
+        execute_never_str = 'True'
+    elif xn_bit == 0:
+        execute_never_str = 'False'
+    elif xn_bit == -1:
+        execute_never_str = 'N/A'
+
+    map = FlatMapping(virt, phy_addr, map_type_str, page_size, attr_indx_str,
+                      shareability_str, execute_never_str, mapped)
 
     if virt not in mappings:
         mappings[virt] = map
@@ -153,7 +209,6 @@ def get_super_section_mapping_info(ramdump, pg_table, index):
 
     return (current_phy_addr, current_page_size, current_map_type, status)
 
-
 def get_section_mapping_info(ramdump, pg_table, index):
     phy_addr = ramdump.read_u64(pg_table, False)
     current_phy_addr = -1
@@ -161,9 +216,21 @@ def get_section_mapping_info(ramdump, pg_table, index):
     current_map_type = 0
     status = True
     section_skip_count = 0
+    attr_indx = 0
+    sh_bits = -1
+    xn_bit = 0
+
 
     if phy_addr is not None:
         current_map_type = phy_addr & LL_AP_BITS
+
+        attr_indx = ( (phy_addr & LL_ATTR_INDX) >> 2 )
+        if attr_indx == ATTR_IDX_NONCACHED or attr_indx == ATTR_IDX_CACHE:
+            sh_bits = phy_addr & LL_SH_BITS   # Shareability info available
+                                              # only for Normal Memory
+
+        if phy_addr & LL_XN:
+            xn_bit = 1
 
         if phy_addr & LL_CH:
             current_phy_addr = phy_addr & 0xFFFFFE000000
@@ -175,7 +242,7 @@ def get_section_mapping_info(ramdump, pg_table, index):
             current_page_size = SZ_2M
 
     return (current_phy_addr, current_page_size, current_map_type,
-            status, section_skip_count)
+            status, section_skip_count, attr_indx, sh_bits, xn_bit)
 
 
 def get_mapping_info(ramdump, pg_table, index):
@@ -186,12 +253,23 @@ def get_mapping_info(ramdump, pg_table, index):
     current_map_type = 0
     status = True
     skip_count = 0
+    attr_indx = 0
+    sh_bits = -1
+    xn_bit = 0
 
     if phy_addr is not None:
         current_map_type = phy_addr & LL_AP_BITS
 
         if phy_addr & LL_TYPE_PAGE:
             current_phy_addr = phy_addr & 0xFFFFFFFFF000
+            attr_indx = ( (phy_addr & LL_ATTR_INDX) >> 2 )
+            if attr_indx == ATTR_IDX_NONCACHED or attr_indx == ATTR_IDX_CACHE:
+                sh_bits = phy_addr & LL_SH_BITS   # Shareability info available
+                                                  # only for Normal Memory
+
+            if phy_addr & LL_XN:
+                xn_bit = 1
+
             if phy_addr & LL_CH:
                 current_phy_addr = phy_addr & 0xFFFFFFFF0000
                 current_page_size = SZ_64K
@@ -203,7 +281,7 @@ def get_mapping_info(ramdump, pg_table, index):
             current_phy_addr = phy_addr
             status = False
     return (current_phy_addr, current_page_size, current_map_type,
-            status, skip_count)
+            status, skip_count, attr_indx, sh_bits, xn_bit)
 
 
 def fl_entry(ramdump, fl_pte, skip_fl):
@@ -233,7 +311,7 @@ def parse_2nd_level_table(ramdump, sl_pg_table_entry, fl_index,
             tmp_mapping = add_flat_mapping(
                           tmp_mapping, fl_index, sl_index,
                           tl_index, 0, -1,
-                          -1, SZ_2M, False)
+                          -1, SZ_2M, -1, -1, -1, False)
             tl_pte += 8
             continue
 
@@ -248,40 +326,36 @@ def parse_2nd_level_table(ramdump, sl_pg_table_entry, fl_index,
                     continue
 
                 (phy_addr, page_size, map_type, status,
-                    skip_count) = get_mapping_info(
-                                                ramdump, ll_pte,
-                                                ll_index)
+                    skip_count, attr_indx, shareability,
+                    xn_bit) = get_mapping_info(ramdump, ll_pte, ll_index)
 
                 if status and phy_addr != -1:
                     tmp_mapping = add_flat_mapping(
                         tmp_mapping, fl_index, sl_index,
-                        tl_index, ll_index, phy_addr,
-                        map_type, page_size, True)
+                        tl_index, ll_index, phy_addr, map_type,
+                        page_size, attr_indx, shareability, xn_bit, True)
                 else:
                     tmp_mapping = add_flat_mapping(
                         tmp_mapping, fl_index, sl_index,
                         tl_index, ll_index, -1,
-                        -1, page_size, False)
+                        -1, page_size, attr_indx, shareability, xn_bit, False)
 
         elif tl_entry_type == FLSL_TYPE_BLOCK:
             if section_skip_count:
                 section_skip_count -= 1
                 continue
 
-            (phy_addr, page_size,
-                map_type, status,
-                section_skip_count) = get_section_mapping_info(
-                                          ramdump, tl_pte, tl_index)
-
+            (phy_addr, page_size, map_type, status,
+                section_skip_count, attr_indx, shareability,
+                xn_bit) = get_section_mapping_info(ramdump, tl_pte, tl_index)
             if status and phy_addr != -1:
                 tmp_mapping = add_flat_mapping(
                     tmp_mapping, fl_index, sl_index,
                     tl_index, 0, phy_addr,
-                    map_type, page_size, True)
+                    map_type, page_size, attr_indx, shareability, xn_bit, True)
 
         tl_pte += 8
     return tmp_mapping
-
 
 def create_flat_mappings(ramdump, pg_table, level):
     tmp_mapping = {}
@@ -307,7 +381,7 @@ def create_flat_mappings(ramdump, pg_table, level):
         if fl_pg_table_entry == 0:
             tmp_mapping = add_flat_mapping(
                                         tmp_mapping, fl_index, 0, 0, 0,
-                                        -1, -1, SZ_256G, False)
+                                        -1, -1, SZ_256G, -1, -1, -1, False)
             fl_pte += 8
             continue
 
@@ -318,7 +392,7 @@ def create_flat_mappings(ramdump, pg_table, level):
             if sl_pg_table_entry == 0 or sl_pg_table_entry is None:
                 tmp_mapping = add_flat_mapping(tmp_mapping,
                                                fl_index, sl_index, 0, 0,
-                                               -1, -1, SZ_1G, False)
+                                               -1, -1, SZ_1G, -1, -1, -1, False)
                 sl_pte += 8
                 continue
 
@@ -332,9 +406,10 @@ def create_flat_mappings(ramdump, pg_table, level):
                     = get_super_section_mapping_info(ramdump, sl_pte, sl_index)
 
                 if status and phy_addr != -1:
+                    #TODO: Fix memory attributes for 2nd-level entry
                     tmp_mapping = add_flat_mapping(
                         tmp_mapping, fl_index, sl_index, 0, 0,
-                        phy_addr, map_type, page_size, True)
+                        phy_addr, map_type, page_size, -1, -1, -1, True)
 
             sl_pte += 8
         fl_pte += 8
@@ -355,12 +430,13 @@ def parse_aarch64_tables(ramdump, d, domain_num):
         iommu_context = iommu_context or 'None attached'
 
         outfile.write(
-            'IOMMU Context: %s. Domain: %s'
+            'IOMMU Contextttt: %s. Domain: %s'
             '[L2 cache redirect for page tables is %s]\n' % (
                 iommu_context, d.client_name, redirect))
         outfile.write(
             '[VA Start -- VA End  ] [Size      ] [PA Start   -- PA End  ] '
-            '[Attributes][Page Table Entry Size]\n')
+            '[Attributes][Page Table Entry Size] [Memory Type] '
+            '[Shareability] [Non-Executable] \n')
         if d.pg_table == 0:
             outfile.write(
                 'No Page Table Found. (Probably a secure domain)\n')
@@ -373,11 +449,14 @@ def parse_aarch64_tables(ramdump, d, domain_num):
 
                 if mapping.mapped:
                     outfile.write(
-                        '0x%x--0x%x [0x%x] A:0x%x--0x%x [0x%x] %s[%s] \n' %
+                        '0x%x--0x%x [0x%x] A:0x%x--0x%x [0x%x] %s[%s] [%s] '
+                        '[%s] [%s]\n' %
                         (mapping.virt_start, mapping.virt_end,
                          mapping.map_size, mapping.phys_start,
                          mapping.phys_end, mapping.map_size, mapping.map_type,
-                         order_size_strings[get_order(mapping.map_size)]))
+                         order_size_strings[get_order(mapping.map_size)],
+                         mapping.attr_indx_str, mapping.shareability_str,
+                         mapping.execute_never_str))
                 else:
                     outfile.write(
                         '0x%x--0x%x [0x%x] [UNMAPPED]\n' %
