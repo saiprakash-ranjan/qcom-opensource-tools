@@ -1,4 +1,4 @@
-# Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -135,6 +135,7 @@ def get_vmemmap(ramdump):
     # See: include/asm-generic/pgtable-nopud.h,
     # arch/arm64/include/asm/pgtable-hwdef.h,
     # arch/arm64/include/asm/pgtable.h
+    # kernel/arch/arm64/include/asm/memory.h
     if (ramdump.kernel_version < (3, 18, 0)):
         nlevels = int(ramdump.get_config_val("CONFIG_ARM64_PGTABLE_LEVELS"))
     else:
@@ -151,15 +152,21 @@ def get_vmemmap(ramdump):
     spsize = ramdump.sizeof('struct page')
     vmemmap_size = bitops.align((1 << (va_bits - page_shift)) * spsize,
                                 pud_size)
+    pfn_offset = (ramdump.phys_offset >> page_shift)
+    offset = pfn_offset * spsize
     if (ramdump.kernel_version < (3, 18, 31)):
         vmalloc_end = ramdump.page_offset - pud_size - vmemmap_size
         # vmalloc_end = 0xFFFFFFBC00000000
-    else:
+    elif (ramdump.kernel_version < (4, 9, 0)):
         # for version >= 3.18.31,
         # vmemmap is shifted to base addr (0x80000000) pfn.
-        pfn_offset = (ramdump.phys_offset >> page_shift)
-        offset = pfn_offset * spsize
         vmalloc_end = ramdump.page_offset - pud_size - vmemmap_size - offset
+    else:
+        # for version >= 4.9.0,
+        struct_page_max_shift = 6
+        #vmemmap_size = ( 1 << (39 - 12 - 1 + 6))
+        vmemmap_size = ( 1 << (va_bits - page_shift - 1 + struct_page_max_shift))
+        vmalloc_end = ramdump.page_offset - vmemmap_size - offset
     return vmalloc_end
 
 
