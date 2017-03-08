@@ -695,6 +695,16 @@ class RamDump():
             sys.exit(1)
         return f
 
+    def remove_file(self, file_name):
+	file_path = os.path.join(self.outdir, file_name)
+	try:
+	    if (os.path.exists(file_path)):
+		os.remove(file_path)
+	except:
+	    print_out_str('Could not remove file {0}'.format(file_path))
+	    print_out_str('Do you have write/read permissions on the path?')
+	    sys.exit(1)
+
     def get_config(self):
         kconfig_addr = self.address_of('kernel_config_data')
         if kconfig_addr is None:
