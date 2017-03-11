@@ -30,6 +30,10 @@ PATTERN_END = "sdhci: ===================="
 MMC_DATA_HEAD = "#################### MMC(mmc%d) INFO START #######################\n"
 MMC_DATA_FOOT = "#################### MMC(mmc%d) INFO END #########################\n\n"
 
+MMC_TRACE_HEADER = "\n################ MMC(mmc%d) RING BUFFER ################\n"
+MMC_TRACE_BUF_EVENTS = 64
+MMC_TRACE_EVENT_SIZE = 256
+
 card_data = {
     0x2: "SANDISK",
     0x11: "TOSHIBA",
@@ -264,6 +268,43 @@ class MmcDataStructure():
         self.parse = ParseMmcLog(self.ramdump)
         return
 
+    def dump_trace_buf(self, fd):
+        if (not self.mmc_host or (fd <= 0) or (self.ramdump.kernel_version < (4, 4))):
+            return
+        mmc_host = self.mmc_host
+        ramdump = self.ramdump
+
+        fd.write(MMC_TRACE_HEADER % self.index)
+        buf_offset = ramdump.field_offset('struct mmc_host', 'trace_buf')
+        if (not buf_offset):
+            return 0
+
+        data_offset = ramdump.field_offset('struct mmc_trace_buffer', 'data')
+        if (not data_offset):
+            return 0
+
+        trace_buf = mmc_host + buf_offset
+        wr_idx = ramdump.read_int(trace_buf)
+        if (wr_idx >= 0xFFFFFFFF):
+            fd.write("mmc%d trace buffer empty\n" %(self.index))
+            return 0
+
+        dataptr = ramdump.read_word(trace_buf + data_offset)
+        if (not dataptr):
+            return
+
+        datastr = []
+        for i in xrange(MMC_TRACE_BUF_EVENTS):
+            trace_str = ramdump.read_cstring(dataptr, MMC_TRACE_EVENT_SIZE)
+            dataptr += MMC_TRACE_EVENT_SIZE
+            datastr.append(trace_str)
+        num = MMC_TRACE_BUF_EVENTS - 1
+        idx = wr_idx & num
+        cur_idx = (idx + 1) & num
+        for i in xrange(MMC_TRACE_BUF_EVENTS):
+            fd.write("event[%d] = %s" %(cur_idx, datastr[cur_idx]))
+            cur_idx = (cur_idx + 1 ) & num
+
     def dump_data(self, mode):
         fd = self.ramdump.open_file(F_MMCDEBUG, mode)
         fd.write(MMC_DATA_HEAD % self.index)
@@ -286,6 +327,7 @@ class MmcDataStructure():
         fd.write("Host ios_timing = %d\n" %self.hostinfo.ios_timing)
         fd.write("Host ios_signal_voltage = %d\n" %self.hostinfo.ios_signal_voltage)
         fd.write("Host ios_drv_type = %d\n" %self.hostinfo.ios_drv_type)
+        self.dump_trace_buf(fd)
         fd.write(MMC_DATA_FOOT % self.index)
         fd.close()
         return
