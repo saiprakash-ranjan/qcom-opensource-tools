@@ -298,7 +298,7 @@ def dump_mmc_info(ramdump, count):
     if (mmc0.parse.error):
         fd.write("ERROR TYPE = %s\n" %mmc0.parse.error)
     else:
-       fd.write("ERROR TYPE = Unkwown Error\n")
+       fd.write("ERROR TYPE = Unknown Error\n")
     fd.write("ERROR SIGN = %s\n\n" % mmc0.parse.error_line)
     fd.close()
 
