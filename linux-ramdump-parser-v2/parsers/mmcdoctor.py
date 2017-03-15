@@ -213,6 +213,12 @@ class MmcHostInfo():
                     self.ramdump.field_offset('struct mmc_host', 'clk_requests'))
         self.clk_old = self.ramdump.read_int(self.host +
                     self.ramdump.field_offset('struct mmc_host', 'clk_old'))
+
+        offset = self.ramdump.field_offset('struct mmc_host', 'err_occurred')
+        if (offset):
+            self.err_occurred = self.ramdump.read_bool(self.host + offset)
+        else:
+            self.err_occurred = -1
         self.ios = self.find_ios()
         self.ios_clock = self.ramdump.read_int(self.ios +
                     self.ramdump.field_offset('struct mmc_ios', 'clock'))
@@ -265,7 +271,8 @@ class MmcDataStructure():
         fd.write("mmc_host = 0x%x\n" % self.mmc_host)
         fd.write("sdhci_host = 0x%x\n" % self.sdhci_host)
         fd.write("sdhci_msm_host = 0x%x\n\n" % self.sdhci_msm_host)
-        fd.write("\nGrep MMC_ERROR at End of File\n\n")
+        fd.write("mmc_host->err_occurred = %d\n" % self.hostinfo.err_occurred)
+        fd.write("Grep MMC_ERROR TYPE at End of File\n\n")
         fd.write("CARD MANFID = %s\n" %self.cardinfo.type)
         fd.write("CARD Fw_rev = 0x%x\n" %self.cardinfo.ext_csd_fwrev)
         fd.write("CARD CMDQ INIT = %d\n\n" %self.cardinfo.cmdq_init)
