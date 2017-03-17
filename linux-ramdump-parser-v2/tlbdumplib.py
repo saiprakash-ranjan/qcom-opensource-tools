@@ -274,6 +274,108 @@ class L1_TLB_A53(TlbDumpType_v1):
         self.NumSets = 0x100
         self.NumWays = 4
 
+class L1_TLB_KRYO3XX_GOLD(TlbDumpType_v2):
+    def __init__(self):
+        super(L1_TLB_KRYO3XX_GOLD, self).__init__()
+        self.unsupported_header_offset = 0
+        self.LineSize = 4
+        self.NumSetsRam0 =  0x100
+        self.NumSetsRam1 =  0x3c
+        self.NumWaysRam0 = 4
+        self.NumWaysRam1 = 2
+
+    def parse_tag_fn(self, output, data, nset, nway, ram, offset):
+        #tlb_type = self.parse_tlb_type(data)
+
+        s1_mode = (data[0] >> 2) & 0x3
+
+        s1_level = data[0] & 0x3
+
+        pa_l = data[2] >> 14
+        pa_h =  (data[3])& 0x1fff
+        pa = (pa_h << 18 | pa_l) * 0x1000
+        pa = pa + offset
+
+        va_l = (data[1] >> 10)
+        va_h = (data[2]) & 0x3ff
+        va = ((va_h << 22) | (va_l)) * 0x1000
+        va = va + offset
+
+        if ((va >> 40) & 0xff )== 0xff:
+            va = va + 0xffff000000000000
+
+        valid = (data[2] >> 11) & 0x1
+
+        vmid_1 = (data[0] >> 26) & 0x3f
+        vmid_2 = data[1] & 0x3ff
+        vmid = (vmid_2 << 6) | vmid_1
+
+        asid = (data[0] >> 10) & 0xffff
+
+        size = self.parse_size(data, ram, tlb_type)
+        output.append(ram)
+        output.append("N/A")
+        output.append(pa)
+        output.append(va)
+        output.append(valid)
+        output.append(vmid)
+        output.append(asid)
+        output.append(s1_mode)
+        output.append(s1_level)
+        output.append(size)
+
+    def parse_tlb_type(self, data):
+        type_num = (data[3] >> 20) & 0x1
+        if type_num == 0x0:
+            s1_level = data[0] & 0x3
+            if s1_level == 0x3:
+                return "IPA"
+            else:
+                return "REG"
+        else:
+            return "WALK"
+
+    def parse_size(self, data, ram, tlb_type):
+        size = (data[0] >> 6) & 0x7
+        if ram == 0:
+            if size == 0x0:
+                return "4KB"
+            elif size == 0x1:
+                return "16KB"
+            else:
+                return "64KB"
+        else:
+            if size == 0x0:
+                return "1MB"
+            elif size == 0x1:
+                return "2MB"
+            elif size == 0x2:
+                return "16MB"
+            elif size == 0x3:
+                return "32MB"
+            elif size == 0x4:
+                return "512MB"
+            else:
+                return "1GB"
+
+class L1_TLB_KRYO3XX_SILVER(TlbDumpType_v1):
+    def __init__(self):
+        super(L1_TLB_KRYO3XX_SILVER, self).__init__()
+        self.unsupported_header_offset = 0
+        self.LineSize = 4
+        self.NumSets = 0x100
+        self.NumWays = 4
+
+# "sdm845"
+lookuptable[("sdm845", 0x20, 0x14)] = L1_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x21, 0x14)] = L1_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x22, 0x14)] = L1_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x23, 0x14)] = L1_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x24, 0x14)] = L1_TLB_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x25, 0x14)] = L1_TLB_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x26, 0x14)] = L1_TLB_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x27, 0x14)] = L1_TLB_KRYO3XX_GOLD()
+
 # "msm8998"
 lookuptable[("8998", 0x20, 0x14)] = L1_TLB_A53()
 lookuptable[("8998", 0x21, 0x14)] = L1_TLB_A53()
