@@ -152,22 +152,27 @@ def get_vmemmap(ramdump):
     spsize = ramdump.sizeof('struct page')
     vmemmap_size = bitops.align((1 << (va_bits - page_shift)) * spsize,
                                 pud_size)
-    pfn_offset = (ramdump.phys_offset >> page_shift)
-    offset = pfn_offset * spsize
+
+    memstart_addr = ramdump.read_s64('memstart_addr')
+    page_section_mask = ~((1 << 18) - 1)
+    memstart_offset = (memstart_addr >> page_shift) & page_section_mask
+    memstart_offset *= spsize
+
     if (ramdump.kernel_version < (3, 18, 31)):
-        vmalloc_end = ramdump.page_offset - pud_size - vmemmap_size
         # vmalloc_end = 0xFFFFFFBC00000000
+        vmemmap = ramdump.page_offset - pud_size - vmemmap_size
     elif (ramdump.kernel_version < (4, 9, 0)):
         # for version >= 3.18.31,
         # vmemmap is shifted to base addr (0x80000000) pfn.
-        vmalloc_end = ramdump.page_offset - pud_size - vmemmap_size - offset
+        vmemmap = (ramdump.page_offset - pud_size - vmemmap_size -
+                   memstart_offset)
     else:
         # for version >= 4.9.0,
+        # vmemmap_size = ( 1 << (39 - 12 - 1 + 6))
         struct_page_max_shift = 6
-        #vmemmap_size = ( 1 << (39 - 12 - 1 + 6))
         vmemmap_size = ( 1 << (va_bits - page_shift - 1 + struct_page_max_shift))
-        vmalloc_end = ramdump.page_offset - vmemmap_size - offset
-    return vmalloc_end
+        vmemmap = ramdump.page_offset - vmemmap_size - memstart_offset
+    return vmemmap
 
 
 def page_to_pfn_vmemmap(ramdump, page):
