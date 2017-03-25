@@ -52,6 +52,7 @@ class client(object):
     MSM_DUMP_DATA_LOG_BUF = 0x110
     MSM_DUMP_DATA_LOG_BUF_FIRST_IDX = 0x111
     MSM_DUMP_DATA_L2_TLB = 0x120
+    MSM_DUMP_DATA_LLC_CACHE = 0x121
     MSM_DUMP_DATA_SCANDUMP = 0xEB
     MSM_DUMP_DATA_MAX = MAX_NUM_ENTRIES
 
@@ -74,6 +75,7 @@ client_types = [
     ('MSM_DUMP_DATA_TMC_ETF', 'parse_qdss_common'),
     ('MSM_DUMP_DATA_TMC_REG', 'parse_qdss_common'),
     ('MSM_DUMP_DATA_L2_TLB', 'parse_l2_tlb'),
+    ('MSM_DUMP_DATA_LLC_CACHE', 'parse_system_cache_common'),
 ]
 
 qdss_tag_to_field_name = {
@@ -207,6 +209,23 @@ class DebugImage_v2():
             cache_type.parse(start, end, ramdump, outfile)
         except NotImplementedError:
             print_out_str('Cache dumping not supported for %s on this target'
+                          % client_name)
+        except:
+            print_out_str('!!! Unhandled exception while running {0}'.format(client_name))
+            print_out_exception()
+        outfile.close()
+
+    def parse_system_cache_common(self, version, start, end, client_id, ramdump):
+        client_name = self.dump_data_id_lookup_table[client_id]
+        bank_number = client_id - client.MSM_DUMP_DATA_LLC_CACHE
+
+        filename = '{0}_0x{1:x}'.format(client_name, bank_number)
+        outfile = ramdump.open_file(filename)
+        cache_type = lookup_cache_type(ramdump.hw_id, client_id, version)
+        try:
+            cache_type.parse(start, end, ramdump, outfile)
+        except NotImplementedError:
+            print_out_str('System cache dumping not supported'
                           % client_name)
         except:
             print_out_str('!!! Unhandled exception while running {0}'.format(client_name))
@@ -488,6 +507,10 @@ class DebugImage_v2():
                     client.MSM_DUMP_DATA_L2_CACHE + i] = 'MSM_DUMP_DATA_L2_CACHE'
                 self.dump_data_id_lookup_table[
                     client.MSM_DUMP_DATA_ETM_REG + i] = 'MSM_DUMP_DATA_ETM_REG'
+
+        for i in range(0, 4):
+                self.dump_data_id_lookup_table[
+                    client.MSM_DUMP_DATA_LLC_CACHE + i] = 'MSM_DUMP_DATA_LLC_CACHE'
         # 0x100 - tmc-etr registers and 0x101 - for tmc-etf registers
         self.dump_data_id_lookup_table[
             client.MSM_DUMP_DATA_TMC_REG + 1] = 'MSM_DUMP_DATA_TMC_REG'

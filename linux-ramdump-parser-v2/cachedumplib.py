@@ -567,6 +567,45 @@ class L1_ICache_KRYO3XX_GOLD(CacheDumpType_v1):
         output.append(ns)
         output.append(addr)
 
+class LLC_SYSTEM_CACHE_KRYO3XX(CacheDumpType_v1):
+    """Refer to documentation:LLC_HDD"""
+    def __init__(self):
+        super(LLC_SYSTEM_CACHE_KRYO3XX, self).__init__()
+        self.tableformat.addColumn('G0 Valid')
+        self.tableformat.addColumn('G0 Dirty')
+        self.tableformat.addColumn('G1 Valid')
+        self.tableformat.addColumn('G1 Dirty')
+        self.tableformat.addColumn('SCID')
+        self.tableformat.addColumn('ECC')
+        self.tableformat.addColumn('Tag address')
+        self.unsupported_header_offset = 0
+        self.TagSize = 2
+        self.LineSize = 16
+        self.NumSets = 0x400
+        self.NumWays = 12
+
+    def parse_tag_fn(self, output, data, nset, nway):
+        if self.TagSize != 2:
+            raise Exception('cache tag size mismatch')
+
+        G0_valid = data[0] & 0x1
+        G1_valid = (data[0] >> 2) & 0x1
+        G0_dirty = (data[0] >> 3) & 0x1
+        G1_dirty = (data[0] >> 4) & 0x1
+        SCID = (data[0] >> 7) & 0x1f
+        ECC_bits = (data[0] >> 14) & 0x7f
+
+        DONE_bit = (data[1] >> 28) & 0x1
+        addr = data[1] & 0x3fffffff
+
+        output.append(G0_valid)
+        output.append(G0_dirty)
+        output.append(G1_valid)
+        output.append(G1_dirty)
+        output.append(SCID)
+        output.append(ECC_bits)
+        output.append(addr)
+
 L1_DCache_KRYO2XX_SILVER = L1_DCache_A53
 L1_ICache_KYRO2XX_SILVER = L1_ICache_A53
 
@@ -589,6 +628,12 @@ lookuptable[("sdm845", 0x64, 0x14)] = L1_ICache_KRYO3XX_GOLD()
 lookuptable[("sdm845", 0x65, 0x14)] = L1_ICache_KRYO3XX_GOLD()
 lookuptable[("sdm845", 0x66, 0x14)] = L1_ICache_KRYO3XX_GOLD()
 lookuptable[("sdm845", 0x67, 0x14)] = L1_ICache_KRYO3XX_GOLD()
+
+
+lookuptable[("sdm845", 0x121, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x122, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x123, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x124, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
 
 # "msmcobalt"
 lookuptable[("cobalt", 0x80, 0x14)] = L1_DCache_KRYO2XX_SILVER()
