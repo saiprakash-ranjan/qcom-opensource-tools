@@ -14,7 +14,7 @@ import os
 from parser_util import register_parser, RamParser
 from parsers.irqstate import IrqParse
 from dmesglib import DmesgLib
-
+from print_out import print_out_str
 
 MMC0_IRQ = 0
 MMC1_IRQ = 0
@@ -99,6 +99,8 @@ class ParseMmcLog():
                 if (line and PATTERN_END in line):
                     fdw.write("ERROR" + line)
             line = fdr.readline()
+        fdw.close()
+        fdr.close()
         self.ramdump.remove_file(F_MMCTEMP)
 
 
@@ -362,5 +364,5 @@ class MmcDebug(RamParser):
                 return
             dump_mmc_info(self.ramdump, count_irq)
         else:
-            print_out_string("\n Could not generate MMC diagnose report\n")
+            print_out_str("\n Could not generate MMC diagnose report\n")
             return
