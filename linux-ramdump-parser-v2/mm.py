@@ -19,6 +19,21 @@ def page_buddy(ramdump, page):
     return val == 0xffffff80
 
 
+def page_count(ramdump, page):
+    """Commit: 0139aa7b7fa12ceef095d99dc36606a5b10ab83a
+    mm: rename _count, field of the struct page, to _refcount"""
+    if (ramdump.version < (4, 6, 0)):
+        count = ramdump.read_structure_field(page, 'struct page',
+                                             '_count.counter')
+    else:
+        count = ramdump.read_structure_field(page, 'struct page',
+                                             '_refcount.counter')
+    return count
+
+
+def page_ref_count(ramdump, page):
+    return page_count(ramdump, page)
+
 def get_debug_flags(ramdump, page):
     debug_flag_offset = ramdump.field_offset('struct page', 'debug_flags')
     flagval = ramdump.read_word(page + debug_flag_offset)

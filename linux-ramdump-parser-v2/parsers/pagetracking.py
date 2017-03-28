@@ -11,7 +11,7 @@
 
 from print_out import print_out_str
 from parser_util import register_parser, RamParser
-from mm import pfn_to_page, page_buddy
+from mm import pfn_to_page, page_buddy, page_count
 
 
 @register_parser('--print-pagetracking', 'print page tracking information (if available)')
@@ -63,14 +63,18 @@ class PageTracking(RamParser):
 
         for pfn in range(min_pfn, max_pfn):
             page = pfn_to_page(self.ramdump, pfn)
+            order = 0
 
-            # validate this page is free
-            if page_buddy(self.ramdump, page):
+            """must be allocated, and the first pfn of an order > 0 page"""
+            if (page_buddy(self.ramdump, page) or
+                    page_count(self.ramdump, page) == 0):
                 continue
             if (self.ramdump.kernel_version <= (3, 19, 0)):
                 nr_trace_entries = self.ramdump.read_int(
                     page + trace_offset + nr_entries_offset)
                 struct_holding_trace_entries = page
+                order = self.ramdump.read_structure_field(
+                            page, 'struct page', 'order')
             else:
                 phys = pfn << 12
                 if phys is None or phys is 0:
@@ -85,11 +89,14 @@ class PageTracking(RamParser):
                 nr_trace_entries = self.ramdump.read_int(
                                     temp_page_ext + nr_entries_offset)
                 struct_holding_trace_entries = temp_page_ext
+                order = self.ramdump.read_structure_field(
+                            temp_page_ext, 'struct page_ext', 'order')
 
             if nr_trace_entries <= 0 or nr_trace_entries > 16:
                 continue
 
-            out_tracking.write('PFN 0x{0:x} page 0x{1:x} \n'.format(pfn, page))
+            out_tracking.write('PFN 0x{:x}-0x{:x} page 0x{:x}\n'.format(
+                pfn, pfn + (1 << order) - 1, page))
 
             alloc_str = ''
             for i in range(0, nr_trace_entries):
