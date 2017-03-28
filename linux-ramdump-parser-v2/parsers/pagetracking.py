@@ -11,7 +11,7 @@
 
 from print_out import print_out_str
 from parser_util import register_parser, RamParser
-from mm import pfn_to_page, page_buddy, page_count
+from mm import pfn_to_page, page_buddy, page_count, for_each_pfn
 
 
 @register_parser('--print-pagetracking', 'print page tracking information (if available)')
@@ -21,13 +21,6 @@ class PageTracking(RamParser):
         if not self.ramdump.is_config_defined('CONFIG_PAGE_OWNER'):
             print_out_str('CONFIG_PAGE_OWNER not defined')
             return
-
-        min_pfn_addr = self.ramdump.address_of('min_low_pfn')
-        max_pfn_addr = self.ramdump.address_of('max_pfn')
-        min_pfn = self.ramdump.read_word(
-            min_pfn_addr) + (self.ramdump.phys_offset >> 12)
-        max_pfn = self.ramdump.read_word(
-            max_pfn_addr) + (self.ramdump.phys_offset >> 12)
 
         if (self.ramdump.kernel_version >= (3, 19, 0)):
             mem_section = self.ramdump.read_word('mem_section')
@@ -61,7 +54,7 @@ class PageTracking(RamParser):
         out_frequency = self.ramdump.open_file('page_frequency.txt')
         sorted_pages = {}
 
-        for pfn in range(min_pfn, max_pfn):
+        for pfn in for_each_pfn(self.ramdump):
             page = pfn_to_page(self.ramdump, pfn)
             order = 0
 

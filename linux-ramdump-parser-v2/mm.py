@@ -304,3 +304,30 @@ def page_address(ramdump, page):
         pam = ramdump.read_word(pam + lh_offset)
         if pam == start:
             return None
+
+
+def for_each_pfn(ramdump):
+    """ creates a generator for looping through valid pfn
+    Example:
+    for i in for_each_pfn(ramdump):
+        page = pfn_to_page(i)
+    """
+    page_size = (1 << 12)
+    cnt = ramdump.read_structure_field('memblock', 'struct memblock',
+                                       'memory.cnt')
+    region = ramdump.read_structure_field('memblock', 'struct memblock',
+                                          'memory.regions')
+    memblock_region_size = ramdump.sizeof('struct memblock_region')
+    for i in range(cnt):
+        start = ramdump.read_structure_field(region, 'struct memblock_region',
+                                             'base')
+        end = start + ramdump.read_structure_field(
+                            region, 'struct memblock_region', 'size')
+
+        pfn = start / page_size
+        end /= page_size
+        while pfn < end:
+            yield pfn
+            pfn += 1
+
+        region += memblock_region_size
