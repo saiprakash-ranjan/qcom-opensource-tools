@@ -91,6 +91,7 @@ nm_path - absolute path to the gdb tool for the ramdumps
 gdb64_path - absolute path to the 64-bit gdb tool for the ramdumps
 nm64_path - absolute path to the 64-bit nm tool for the ramdumps
 qtf_path - absolute path to qtf tool executable
+scandump_parser_path - absolute path to scandump parser for the ramdumps
 
 Note that local_settings.py is just a python file so the file may take advantage
 of python features.
