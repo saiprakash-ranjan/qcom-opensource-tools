@@ -1275,6 +1275,11 @@ class RamDump():
         s = self.read_string(addr_or_name, '<?', virtual, cpu)
         return s[0] if s is not None else None
 
+    def read_s64(self, addr_or_name, virtual=True, cpu=None):
+        """returns a value guaranteed to be 64 bits"""
+        s = self.read_string(addr_or_name, '<q', virtual, cpu)
+        return s[0] if s is not None else None
+
     def read_u64(self, addr_or_name, virtual=True, cpu=None):
         """returns a value guaranteed to be 64 bits"""
         s = self.read_string(addr_or_name, '<Q', virtual, cpu)
