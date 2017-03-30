@@ -19,6 +19,21 @@ def page_buddy(ramdump, page):
     return val == 0xffffff80
 
 
+def page_count(ramdump, page):
+    """Commit: 0139aa7b7fa12ceef095d99dc36606a5b10ab83a
+    mm: rename _count, field of the struct page, to _refcount"""
+    if (ramdump.version < (4, 6, 0)):
+        count = ramdump.read_structure_field(page, 'struct page',
+                                             '_count.counter')
+    else:
+        count = ramdump.read_structure_field(page, 'struct page',
+                                             '_refcount.counter')
+    return count
+
+
+def page_ref_count(ramdump, page):
+    return page_count(ramdump, page)
+
 def get_debug_flags(ramdump, page):
     debug_flag_offset = ramdump.field_offset('struct page', 'debug_flags')
     flagval = ramdump.read_word(page + debug_flag_offset)
@@ -152,22 +167,27 @@ def get_vmemmap(ramdump):
     spsize = ramdump.sizeof('struct page')
     vmemmap_size = bitops.align((1 << (va_bits - page_shift)) * spsize,
                                 pud_size)
-    pfn_offset = (ramdump.phys_offset >> page_shift)
-    offset = pfn_offset * spsize
+
+    memstart_addr = ramdump.read_s64('memstart_addr')
+    page_section_mask = ~((1 << 18) - 1)
+    memstart_offset = (memstart_addr >> page_shift) & page_section_mask
+    memstart_offset *= spsize
+
     if (ramdump.kernel_version < (3, 18, 31)):
-        vmalloc_end = ramdump.page_offset - pud_size - vmemmap_size
         # vmalloc_end = 0xFFFFFFBC00000000
+        vmemmap = ramdump.page_offset - pud_size - vmemmap_size
     elif (ramdump.kernel_version < (4, 9, 0)):
         # for version >= 3.18.31,
         # vmemmap is shifted to base addr (0x80000000) pfn.
-        vmalloc_end = ramdump.page_offset - pud_size - vmemmap_size - offset
+        vmemmap = (ramdump.page_offset - pud_size - vmemmap_size -
+                   memstart_offset)
     else:
         # for version >= 4.9.0,
+        # vmemmap_size = ( 1 << (39 - 12 - 1 + 6))
         struct_page_max_shift = 6
-        #vmemmap_size = ( 1 << (39 - 12 - 1 + 6))
         vmemmap_size = ( 1 << (va_bits - page_shift - 1 + struct_page_max_shift))
-        vmalloc_end = ramdump.page_offset - vmemmap_size - offset
-    return vmalloc_end
+        vmemmap = ramdump.page_offset - vmemmap_size - memstart_offset
+    return vmemmap
 
 
 def page_to_pfn_vmemmap(ramdump, page):
@@ -284,3 +304,30 @@ def page_address(ramdump, page):
         pam = ramdump.read_word(pam + lh_offset)
         if pam == start:
             return None
+
+
+def for_each_pfn(ramdump):
+    """ creates a generator for looping through valid pfn
+    Example:
+    for i in for_each_pfn(ramdump):
+        page = pfn_to_page(i)
+    """
+    page_size = (1 << 12)
+    cnt = ramdump.read_structure_field('memblock', 'struct memblock',
+                                       'memory.cnt')
+    region = ramdump.read_structure_field('memblock', 'struct memblock',
+                                          'memory.regions')
+    memblock_region_size = ramdump.sizeof('struct memblock_region')
+    for i in range(cnt):
+        start = ramdump.read_structure_field(region, 'struct memblock_region',
+                                             'base')
+        end = start + ramdump.read_structure_field(
+                            region, 'struct memblock_region', 'size')
+
+        pfn = start / page_size
+        end /= page_size
+        while pfn < end:
+            yield pfn
+            pfn += 1
+
+        region += memblock_region_size
