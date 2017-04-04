@@ -45,8 +45,7 @@ class DDRCompare(RamParser) :
                 bitcheck = virtual & 0x3
                 if bitcheck:
                     virtual = virtual - bitcheck
-                physical = self.ramdump.virt_to_phys(
-                                virtual + self.ramdump.kaslr_offset)
+                physical = self.ramdump.virt_to_phys(virtual)
 
                 magic = hex(self.ramdump.read_u32(physical, False)).rstrip("L").lstrip("0x").zfill(8)
                 if (m.group(2) != magic):
