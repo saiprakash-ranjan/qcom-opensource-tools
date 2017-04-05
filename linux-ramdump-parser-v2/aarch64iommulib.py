@@ -145,6 +145,7 @@ def add_flat_mapping(mappings, fl_idx, sl_idx, tl_idx, ll_idx, phy_addr,
                     xn_bit, mapped):
     virt = (fl_idx << 39) | (sl_idx << 30) | (tl_idx << 21) | (ll_idx << 12)
     map_type_str = '[R/W]'
+    attr_indx_str ='[]'
 
     if map_type == LL_AP_RO:
         map_type_str = '[RO]'
