@@ -1,4 +1,4 @@
-# Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -431,6 +431,181 @@ class L1_ICache_KRYO2XX_GOLD(CacheDumpType_v1):
         output.append(n)
         output.append(addr)
 
+class L1_DCache_KRYO3XX_SILVER(CacheDumpType_v1):
+    """Refer to documentation:ad003_atrm"""
+    def __init__(self):
+        super(L1_DCache_KRYO3XX_SILVER, self).__init__()
+        self.tableformat.addColumn('MESI')
+        self.tableformat.addColumn('Tag Address [39:12]')
+        self.tableformat.addColumn('NS')
+        self.tableformat.addColumn('Outer Allocation Hint')
+        self.unsupported_header_offset = 0
+        self.TagSize = 2
+        self.LineSize = 16
+        self.NumSets = 0x80
+        self.NumWays = 4
+
+    def MESI_to_string(MESI_d):
+        if MESI_d == 0:
+            return 'I'
+        elif MESI_d == 1:
+            return 'S'
+        elif MESI_d == 2:
+            return 'E'
+        else:
+            return 'M'
+
+    def parse_tag_fn(self, output, data, nset, nway):
+        if self.TagSize != 2:
+            raise Exception('cache tag size mismatch')
+
+        MESI_d = (data[1] >> 30) & 0x3
+        addr = (data[1] >> 1) & 0xfffffff
+        ns = (data[1] >> 29) & 0x1
+        alloc_hint = data[0] & 0x1
+
+        mesi = self.MESI_to_string(MESI_d)
+        output.append(mesi)
+        output.append(addr)
+        output.append(ns)
+        output.append(alloc_hint)
+
+class L1_ICache_KRYO3XX_SILVER(CacheDumpType_v1):
+    """Refer to documentation:ad003_atrm"""
+    def __init__(self):
+        super(L1_ICache_KRYO3XX_SILVER, self).__init__()
+        self.tableformat.addColumn('Valid and set mode')
+        self.tableformat.addColumn('NS')
+        self.tableformat.addColumn('Tag address')
+        self.unsupported_header_offset = 0
+        self.TagSize = 2
+        self.LineSize = 16
+        self.NumSets = 0x80
+        self.NumWays = 4
+
+    def valid_to_string(valid_d):
+        if valid_d == 0:
+            return 'A32'
+        elif valid_d == 1:
+            return 'T32'
+        elif valid_d == 2:
+            return 'A64'
+        else:
+            return 'Invalid'
+
+    def parse_tag_fn(self, output, data, nset, nway):
+        if self.TagSize != 2:
+            raise Exception('cache tag size mismatch')
+
+        valid_d = (data[0] >> 29) & 0x3
+        ns = (data[0] >> 28) & 0x1
+        addr = data[0] & 0xfffffff
+
+        set_mode = self.valid_to_string(valid_d)
+        output.append(set_mode)
+        output.append(ns)
+        output.append(addr)
+
+class L1_DCache_KRYO3XX_GOLD(CacheDumpType_v1):
+    """Refer to documentation:ad003_atrm"""
+    def __init__(self):
+        super(L1_DCache_KRYO3XX_GOLD, self).__init__()
+        self.tableformat.addColumn('PA [43:12]')
+        self.tableformat.addColumn('MESI')
+        self.unsupported_header_offset = 0
+        self.TagSize = 3
+        self.LineSize = 16
+        self.NumSets = 0x40
+        self.NumWays = 16
+
+    def MESI_to_string(MESI_d):
+        if MESI_d == 0:
+            return 'I'
+        elif MESI_d == 1:
+            return 'S'
+        elif MESI_d == 2:
+            return 'E'
+        else:
+            return 'M'
+
+    def parse_tag_fn(self, output, data, nset, nway):
+        if self.TagSize != 3:
+            raise Exception('cache tag size mismatch')
+
+        addr_lower = (data[0] >> 10) & 0x3fffff
+        addr_higher = data[1] & 0x3ff
+        mesi_d = (data[0] >> 2) & 0x3
+
+        addr = (addr_higher << 22) | addr_lower
+        mesi = MESI_to_string(mesi_d)
+        output.append(addr)
+        output.append(mesi)
+
+
+class L1_ICache_KRYO3XX_GOLD(CacheDumpType_v1):
+    """Refer to documentation:ad003_atrm"""
+    def __init__(self):
+        super(L1_ICache_KRYO3XX_GOLD, self).__init__()
+        self.tableformat.addColumn('Valid and set mode')
+        self.tableformat.addColumn('NS')
+        self.tableformat.addColumn('Tag address')
+        self.unsupported_header_offset = 0
+        self.TagSize = 2
+        self.LineSize = 16
+        self.NumSets = 0x100
+        self.NumWays = 4
+
+    def parse_tag_fn(self, output, data, nset, nway):
+        if self.TagSize != 2:
+            raise Exception('cache tag size mismatch')
+
+        valid = (data[0] >> 29) & 0x1
+        ns = (data[0] >> 28) & 0x1
+        addr = data[0] & 0xfffffff
+
+        output.append(valid)
+        output.append(ns)
+        output.append(addr)
+
+class LLC_SYSTEM_CACHE_KRYO3XX(CacheDumpType_v1):
+    """Refer to documentation:LLC_HDD"""
+    def __init__(self):
+        super(LLC_SYSTEM_CACHE_KRYO3XX, self).__init__()
+        self.tableformat.addColumn('G0 Valid')
+        self.tableformat.addColumn('G0 Dirty')
+        self.tableformat.addColumn('G1 Valid')
+        self.tableformat.addColumn('G1 Dirty')
+        self.tableformat.addColumn('SCID')
+        self.tableformat.addColumn('ECC')
+        self.tableformat.addColumn('Tag address')
+        self.unsupported_header_offset = 0
+        self.TagSize = 2
+        self.LineSize = 16
+        self.NumSets = 0x400
+        self.NumWays = 12
+
+    def parse_tag_fn(self, output, data, nset, nway):
+        if self.TagSize != 2:
+            raise Exception('cache tag size mismatch')
+
+        G0_valid = data[0] & 0x1
+        G1_valid = (data[0] >> 2) & 0x1
+        G0_dirty = (data[0] >> 3) & 0x1
+        G1_dirty = (data[0] >> 4) & 0x1
+        SCID = (data[0] >> 7) & 0x1f
+        ECC_bits = (data[0] >> 14) & 0x7f
+
+        DONE_bit = (data[1] >> 28) & 0x1
+        addr = data[1] & 0x3fffffff
+
+        output.append(G0_valid)
+        output.append(G0_dirty)
+        output.append(G1_valid)
+        output.append(G1_dirty)
+        output.append(SCID)
+        output.append(ECC_bits)
+        output.append(addr)
+
 L1_DCache_KRYO2XX_SILVER = L1_DCache_A53
 L1_ICache_KYRO2XX_SILVER = L1_ICache_A53
 
@@ -453,6 +628,32 @@ lookuptable[("8998", 0x64, 0x14)] = L1_ICache_KRYO2XX_GOLD()
 lookuptable[("8998", 0x65, 0x14)] = L1_ICache_KRYO2XX_GOLD()
 lookuptable[("8998", 0x66, 0x14)] = L1_ICache_KRYO2XX_GOLD()
 lookuptable[("8998", 0x67, 0x14)] = L1_ICache_KRYO2XX_GOLD()
+
+# "sdm845"
+lookuptable[("sdm845", 0x80, 0x14)] = L1_DCache_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x81, 0x14)] = L1_DCache_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x82, 0x14)] = L1_DCache_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x83, 0x14)] = L1_DCache_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x84, 0x14)] = L1_DCache_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x85, 0x14)] = L1_DCache_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x86, 0x14)] = L1_DCache_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x87, 0x14)] = L1_DCache_KRYO3XX_GOLD()
+
+
+lookuptable[("sdm845", 0x60, 0x14)] = L1_ICache_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x61, 0x14)] = L1_ICache_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x62, 0x14)] = L1_ICache_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x63, 0x14)] = L1_ICache_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x64, 0x14)] = L1_ICache_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x65, 0x14)] = L1_ICache_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x66, 0x14)] = L1_ICache_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x67, 0x14)] = L1_ICache_KRYO3XX_GOLD()
+
+
+lookuptable[("sdm845", 0x121, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x122, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x123, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x124, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
 
 # "sdm660"
 lookuptable[("660", 0x80, 0x14)] = L1_DCache_KRYO2XX_SILVER()
@@ -545,12 +746,20 @@ lookuptable[("8917", 0x84, 0x14)] = L1_DCache_A53()
 lookuptable[("8917", 0x85, 0x14)] = L1_DCache_A53()
 lookuptable[("8917", 0x86, 0x14)] = L1_DCache_A53()
 lookuptable[("8917", 0x87, 0x14)] = L1_DCache_A53()
+lookuptable[("8917", 0x64, 0x14)] = L1_ICache_A53()
+lookuptable[("8917", 0x65, 0x14)] = L1_ICache_A53()
+lookuptable[("8917", 0x66, 0x14)] = L1_ICache_A53()
+lookuptable[("8917", 0x67, 0x14)] = L1_ICache_A53()
 
 # 8920
 lookuptable[("8920", 0x84, 0x14)] = L1_DCache_A53()
 lookuptable[("8920", 0x85, 0x14)] = L1_DCache_A53()
 lookuptable[("8920", 0x86, 0x14)] = L1_DCache_A53()
 lookuptable[("8920", 0x87, 0x14)] = L1_DCache_A53()
+lookuptable[("8920", 0x64, 0x14)] = L1_ICache_A53()
+lookuptable[("8920", 0x65, 0x14)] = L1_ICache_A53()
+lookuptable[("8920", 0x66, 0x14)] = L1_ICache_A53()
+lookuptable[("8920", 0x67, 0x14)] = L1_ICache_A53()
 
 # 8937
 lookuptable[("8937", 0x80, 0x14)] = L1_DCache_A53()
@@ -561,6 +770,14 @@ lookuptable[("8937", 0x84, 0x14)] = L1_DCache_A53()
 lookuptable[("8937", 0x85, 0x14)] = L1_DCache_A53()
 lookuptable[("8937", 0x86, 0x14)] = L1_DCache_A53()
 lookuptable[("8937", 0x87, 0x14)] = L1_DCache_A53()
+lookuptable[("8937", 0x60, 0x14)] = L1_ICache_A53()
+lookuptable[("8937", 0x61, 0x14)] = L1_ICache_A53()
+lookuptable[("8937", 0x62, 0x14)] = L1_ICache_A53()
+lookuptable[("8937", 0x63, 0x14)] = L1_ICache_A53()
+lookuptable[("8937", 0x64, 0x14)] = L1_ICache_A53()
+lookuptable[("8937", 0x65, 0x14)] = L1_ICache_A53()
+lookuptable[("8937", 0x66, 0x14)] = L1_ICache_A53()
+lookuptable[("8937", 0x67, 0x14)] = L1_ICache_A53()
 
 # 8940
 lookuptable[("8940", 0x80, 0x14)] = L1_DCache_A53()
@@ -571,6 +788,14 @@ lookuptable[("8940", 0x84, 0x14)] = L1_DCache_A53()
 lookuptable[("8940", 0x85, 0x14)] = L1_DCache_A53()
 lookuptable[("8940", 0x86, 0x14)] = L1_DCache_A53()
 lookuptable[("8940", 0x87, 0x14)] = L1_DCache_A53()
+lookuptable[("8940", 0x60, 0x14)] = L1_ICache_A53()
+lookuptable[("8940", 0x61, 0x14)] = L1_ICache_A53()
+lookuptable[("8940", 0x62, 0x14)] = L1_ICache_A53()
+lookuptable[("8940", 0x63, 0x14)] = L1_ICache_A53()
+lookuptable[("8940", 0x64, 0x14)] = L1_ICache_A53()
+lookuptable[("8940", 0x65, 0x14)] = L1_ICache_A53()
+lookuptable[("8940", 0x66, 0x14)] = L1_ICache_A53()
+lookuptable[("8940", 0x67, 0x14)] = L1_ICache_A53()
 
 # 8953
 lookuptable[("8953", 0x80, 0x14)] = L1_DCache_A53()

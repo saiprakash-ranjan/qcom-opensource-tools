@@ -1,4 +1,4 @@
-# Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -51,16 +51,21 @@ class MMU(object):
         if addr is None:
             return None
 
-        if not skip_tlb:
-            if addr in self._tlb:
-                return self._tlb[addr]
+        page_addr = (addr >> 12) << 12
+        page_offset = addr & 0xFFF
 
-        phys_addr = self.page_table_walk(addr)
+        if not skip_tlb:
+            if page_addr in self._tlb:
+                return self._tlb[page_addr] + page_offset
+
+        phys_addr = self.page_table_walk(page_addr)
+        if phys_addr is None:
+            return None
 
         if save_in_tlb:
-            self._tlb[addr] = phys_addr
+            self._tlb[page_addr] = phys_addr
 
-        return phys_addr
+        return phys_addr + page_offset
 
     def load_page_tables(self):
         raise NotImplementedError

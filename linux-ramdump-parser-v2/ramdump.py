@@ -590,6 +590,7 @@ class RamDump():
         if self.kimage_voffset is not None:
             self.kimage_voffset = self.kimage_vaddr - self.phys_offset
             self.modules_end = self.kimage_vaddr
+            print_out_str("The kimage_voffset extracted is: {:x}".format(self.kimage_voffset))
 
         # The address of swapper_pg_dir can be used to determine
         # whether or not we're running with LPAE enabled since an
@@ -694,6 +695,16 @@ class RamDump():
             print_out_str('Do you have write/read permissions on the path?')
             sys.exit(1)
         return f
+
+    def remove_file(self, file_name):
+	file_path = os.path.join(self.outdir, file_name)
+	try:
+	    if (os.path.exists(file_path)):
+		os.remove(file_path)
+	except:
+	    print_out_str('Could not remove file {0}'.format(file_path))
+	    print_out_str('Do you have write/read permissions on the path?')
+	    sys.exit(1)
 
     def get_config(self):
         kconfig_addr = self.address_of('kernel_config_data')
@@ -1264,6 +1275,11 @@ class RamDump():
         s = self.read_string(addr_or_name, '<?', virtual, cpu)
         return s[0] if s is not None else None
 
+    def read_s64(self, addr_or_name, virtual=True, cpu=None):
+        """returns a value guaranteed to be 64 bits"""
+        s = self.read_string(addr_or_name, '<q', virtual, cpu)
+        return s[0] if s is not None else None
+
     def read_u64(self, addr_or_name, virtual=True, cpu=None):
         """returns a value guaranteed to be 64 bits"""
         s = self.read_string(addr_or_name, '<Q', virtual, cpu)
@@ -1302,6 +1318,9 @@ class RamDump():
         """reads a 4 or 8 byte field from a structure"""
         size = self.sizeof("(({0} *)0)->{1}".format(struct_name, field))
         virt = self.resolve_virt(addr_or_name)
+        if virt is None or size is None:
+            return None
+
         if size == 4:
             return self.read_u32(virt + self.field_offset(struct_name,
                                                                   field))
