@@ -365,3 +365,13 @@ lookuptable[(8992, 0x64, 0x100)] = L1_ICache_A57()
 lookuptable[(8992, 0x65, 0x100)] = L1_ICache_A57()
 
 lookuptable[(8992, 0xC1, 0x100)] = L2_Cache_A57(numsets=0x400)
+
+# sdm450
+lookuptable[(450, 0x80, 0x14)] = L1_DCache_A53()
+lookuptable[(450, 0x81, 0x14)] = L1_DCache_A53()
+lookuptable[(450, 0x82, 0x14)] = L1_DCache_A53()
+lookuptable[(450, 0x83, 0x14)] = L1_DCache_A53()
+lookuptable[(450, 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[(450, 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[(450, 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[(450, 0x87, 0x14)] = L1_DCache_A53()
