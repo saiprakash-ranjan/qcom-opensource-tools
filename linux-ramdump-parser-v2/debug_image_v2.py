@@ -27,6 +27,7 @@ from print_out import print_out_str, print_out_exception
 from qdss import QDSSDump
 from watchdog_v2 import TZRegDump_v2
 from cachedumplib import lookup_cache_type
+from tlbdumplib import lookup_tlb_type
 from vsens import VsensData
 
 MEMDUMPV2_MAGIC = 0x42445953
@@ -51,6 +52,7 @@ class client(object):
     MSM_DUMP_DATA_LOG_BUF = 0x110
     MSM_DUMP_DATA_LOG_BUF_FIRST_IDX = 0x111
     MSM_DUMP_DATA_L2_TLB = 0x120
+    MSM_DUMP_DATA_LLC_CACHE = 0x121
     MSM_DUMP_DATA_SCANDUMP = 0xEB
     MSM_DUMP_DATA_MAX = MAX_NUM_ENTRIES
 
@@ -58,8 +60,8 @@ class client(object):
 client_types = [
     ('MSM_DUMP_DATA_SCANDUMP', 'parse_scandump'),
     ('MSM_DUMP_DATA_CPU_CTX', 'parse_cpu_ctx'),
-    ('MSM_DUMP_DATA_L1_INST_TLB', 'parse_l1_inst_tlb'),
-    ('MSM_DUMP_DATA_L1_DATA_TLB', 'parse_l1_data_tlb'),
+    ('MSM_DUMP_DATA_L1_INST_TLB', 'parse_tlb_common'),
+    ('MSM_DUMP_DATA_L1_DATA_TLB', 'parse_tlb_common'),
     ('MSM_DUMP_DATA_L1_INST_CACHE', 'parse_cache_common'),
     ('MSM_DUMP_DATA_L1_DATA_CACHE', 'parse_cache_common'),
     ('MSM_DUMP_DATA_L2_CACHE', 'parse_cache_common'),
@@ -73,6 +75,7 @@ client_types = [
     ('MSM_DUMP_DATA_TMC_ETF', 'parse_qdss_common'),
     ('MSM_DUMP_DATA_TMC_REG', 'parse_qdss_common'),
     ('MSM_DUMP_DATA_L2_TLB', 'parse_l2_tlb'),
+    ('MSM_DUMP_DATA_LLC_CACHE', 'parse_system_cache_common'),
 ]
 
 qdss_tag_to_field_name = {
@@ -95,7 +98,6 @@ class DebugImage_v2():
         else:
             self.event_call = 'struct ftrace_event_call'
             self.event_class = 'struct ftrace_event_class'
-        self.has_scan_dump = False
 
     def parse_scandump(self, version, start, end, client_id, ram_dump):
         scandump_file_prefix = "scandump"
@@ -104,8 +106,6 @@ class DebugImage_v2():
         except AttributeError:
             print_out_str('Could not find scandump_parser_path . Please define scandump_parser_path in local_settings')
             return
-        if client_id == client.MSM_DUMP_DATA_SCANDUMP:
-            self.has_scan_dump = True
         output = os.path.join(ram_dump.outdir, scandump_file_prefix)
         input = os.path.join(ram_dump.outdir, "vv_msg_4_header.bin")
         print_out_str(
@@ -126,7 +126,7 @@ class DebugImage_v2():
         print_out_str(
             'Parsing CPU{2} context start {0:x} end {1:x}'.format(start, end, core))
 
-        regs = TZRegDump_v2(self.has_scan_dump)
+        regs = TZRegDump_v2()
         if regs.init_regs(version, start, end, core, ram_dump) is False:
             print_out_str('!!! Could not get registers from TZ dump')
             return
@@ -211,6 +211,40 @@ class DebugImage_v2():
             print_out_str('!!! Unhandled exception while running {0}'.format(client_name))
             print_out_exception()
         outfile.close()
+
+    def parse_system_cache_common(self, version, start, end, client_id, ramdump):
+        client_name = self.dump_data_id_lookup_table[client_id]
+        bank_number = client_id - client.MSM_DUMP_DATA_LLC_CACHE
+
+        filename = '{0}_0x{1:x}'.format(client_name, bank_number)
+        outfile = ramdump.open_file(filename)
+        cache_type = lookup_cache_type(ramdump.hw_id, client_id, version)
+        try:
+            cache_type.parse(start, end, ramdump, outfile)
+        except NotImplementedError:
+            print_out_str('System cache dumping not supported'
+                          % client_name)
+        except:
+            print_out_str('!!! Unhandled exception while running {0}'.format(client_name))
+            print_out_exception()
+        outfile.close()
+
+    def parse_tlb_common(self, version, start, end, client_id, ramdump):
+        client_name = self.dump_data_id_lookup_table[client_id]
+        core = client_id & 0xF
+        filename = '{0}_0x{1:x}'.format(client_name, core)
+        outfile = ramdump.open_file(filename)
+        cache_type = lookup_tlb_type(ramdump.hw_id, client_id, version)
+        try:
+            cache_type.parse(start, end, ramdump, outfile)
+        except NotImplementedError:
+            print_out_str('TLB dumping not supported for %s on this target'
+                          % client_name)
+        except:
+            print_out_str('!!! Unhandled exception while running {0}'.format(client_name))
+            print_out_exception()
+        outfile.close()
+
 
     def ftrace_field_func(self, common_list, ram_dump):
         name_offset = ram_dump.field_offset('struct ftrace_event_field', 'name')
@@ -470,6 +504,10 @@ class DebugImage_v2():
                     client.MSM_DUMP_DATA_L2_CACHE + i] = 'MSM_DUMP_DATA_L2_CACHE'
                 self.dump_data_id_lookup_table[
                     client.MSM_DUMP_DATA_ETM_REG + i] = 'MSM_DUMP_DATA_ETM_REG'
+
+        for i in range(0, 4):
+                self.dump_data_id_lookup_table[
+                    client.MSM_DUMP_DATA_LLC_CACHE + i] = 'MSM_DUMP_DATA_LLC_CACHE'
         # 0x100 - tmc-etr registers and 0x101 - for tmc-etf registers
         self.dump_data_id_lookup_table[
             client.MSM_DUMP_DATA_TMC_REG + 1] = 'MSM_DUMP_DATA_TMC_REG'

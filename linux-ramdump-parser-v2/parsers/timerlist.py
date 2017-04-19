@@ -21,13 +21,24 @@ class TimerList(RamParser) :
         super(TimerList, self).__init__(*args)
         self.vectors = {'tv1': 256, 'tv2': 64, 'tv3': 64, 'tv4': 64, 'tv5': 64}
         self.output = []
+        major, minor, patch = self.ramdump.kernel_version
         self.timer_42 = False
+        self.timer_jiffies = 'timer_jiffies'
+        self.tvec_base = 'struct tvec_base'
+        self.tvec_bases = 'tvec_bases'
+        self.next_timer = 'next_timer'
 
+        if (major, minor) >= (4, 9):
+            self.vectors = {'vectors': 512}
+            self.timer_jiffies = 'clk'
+            self.tvec_base = 'struct timer_base'
+            self.tvec_bases = 'timer_bases'
+            self.next_timer = 'next_expiry'
         # Timerlist structure changed in kernel 4.2
         # Requires separate processing
-        if self.ramdump.kernel_version[0] >= 4:
-            if self.ramdump.kernel_version[1] >= 2:
-                self.timer_42 = True
+        if (major, minor) >= (4, 2):
+            self.timer_42 = True
+
 
     def timer_list_walker(self, node, type, index, base):
         if node == self.head:
@@ -65,7 +76,7 @@ class TimerList(RamParser) :
         self.output.append(output)
 
     def iterate_vec(self, type, base):
-        vec_addr = base + self.ramdump.field_offset('struct tvec_base', type)
+        vec_addr = base + self.ramdump.field_offset(self.tvec_base, type)
         for i in range(0, self.vectors[type]):
             index = self.ramdump.array_index(vec_addr, 'struct list_head', i)
             self.head = index
@@ -74,7 +85,7 @@ class TimerList(RamParser) :
             timer_list_walker.walk(index, self.timer_list_walker, type, i, base)
 
     def iterate_vec_v2(self, type, base):
-        vec_addr = base + self.ramdump.field_offset('struct tvec_base', type)
+        vec_addr = base + self.ramdump.field_offset(self.tvec_base, type)
         for i in range(0, self.vectors[type]):
             index = self.ramdump.array_index(vec_addr, 'struct hlist_head', i)
             self.head = index
@@ -101,14 +112,14 @@ class TimerList(RamParser) :
 
         tvec_base_deferral_addr = self.ramdump.address_of('tvec_base_deferrable')
         if tvec_base_deferral_addr:
-            timer_jiffies_addr = tvec_base_deferral_addr + self.ramdump.field_offset('struct tvec_base', 'timer_jiffies')
-            next_timer_addr = tvec_base_deferral_addr + self.ramdump.field_offset('struct tvec_base', 'next_timer')
+            timer_jiffies_addr = tvec_base_deferral_addr + self.ramdump.field_offset(self.tvec_base, self.timer_jiffies)
+            next_timer_addr = tvec_base_deferral_addr + self.ramdump.field_offset(self.tvec_base, self.next_timer)
 
             timer_jiffies = self.ramdump.read_word(timer_jiffies_addr)
             next_timer = self.ramdump.read_word(next_timer_addr)
-            active_timers_offset = self.ramdump.field_offset('struct tvec_base', 'active_timers')
+            active_timers_offset = self.ramdump.field_offset(self.tvec_base, 'active_timers')
             if active_timers_offset is not None:
-                    active_timers_addr = tvec_base_deferral_addr + self.ramdump.field_offset('struct tvec_base', 'active_timers')
+                    active_timers_addr = tvec_base_deferral_addr + self.ramdump.field_offset(self.tvec_base, 'active_timers')
                     active_timers = self.ramdump.read_word(active_timers_addr)
             else:
                     active_timers = "NA"
@@ -127,8 +138,7 @@ class TimerList(RamParser) :
                      self.iterate_vec(vec, tvec_base_deferral_addr)
                 self.print_vec(vec)
 
-        tvec_bases_addr = self.ramdump.address_of('tvec_bases')
-
+        tvec_bases_addr = self.ramdump.address_of(self.tvec_bases)
         for cpu in range(0, self.ramdump.get_num_cpus()):
             title = "CPU {0}".format(cpu)
 
@@ -140,14 +150,14 @@ class TimerList(RamParser) :
 
             title += "(tvec_base: {0:x} ".format(base)
 
-            timer_jiffies_addr = base + self.ramdump.field_offset('struct tvec_base', 'timer_jiffies')
-            next_timer_addr = base + self.ramdump.field_offset('struct tvec_base', 'next_timer')
+            timer_jiffies_addr = base + self.ramdump.field_offset(self.tvec_base, self.timer_jiffies)
+            next_timer_addr = base + self.ramdump.field_offset(self.tvec_base, self.next_timer)
 
             timer_jiffies = self.ramdump.read_word(timer_jiffies_addr)
             next_timer = self.ramdump.read_word(next_timer_addr)
-            active_timers_offset = self.ramdump.field_offset('struct tvec_base', 'active_timers')
+            active_timers_offset = self.ramdump.field_offset(self.tvec_base, 'active_timers')
             if active_timers_offset is not None:
-                active_timers_addr = base + self.ramdump.field_offset('struct tvec_base', 'active_timers')
+                active_timers_addr = base + self.ramdump.field_offset(self.tvec_base, 'active_timers')
                 active_timers = self.ramdump.read_word(active_timers_addr)
             else:
                 active_timers = "NA"

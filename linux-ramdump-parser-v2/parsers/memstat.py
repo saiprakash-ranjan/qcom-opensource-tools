@@ -1,4 +1,4 @@
-# Copyright (c) 2016 The Linux Foundation. All rights reserved.
+# Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -50,7 +50,7 @@ class MemStats(RamParser):
         list_walker.walk(vmlist, self.list_func)
         self.vmalloc_size = self.bytes_to_mb(self.vmalloc_size)
 
-    def calculate_others(self):
+    def calculate_vm_stat(self):
         # Other memory :  NR_ANON_PAGES + NR_FILE_PAGES + NR_PAGETABLE \
         # + NR_KERNEL_STACK - NR_SWAPCACHE
         vmstat_anon_pages = self.ramdump.read_word(
@@ -65,6 +65,22 @@ class MemStats(RamParser):
                             'vm_stat[NR_SWAPCACHE]')
         other_mem = (vmstat_anon_pages + vmstat_file_pages + vmstat_pagetbl +
                      vmstat_kernelstack - vmstat_swapcache)
+        other_mem = self.pages_to_mb(other_mem)
+        return other_mem
+
+    def calculate_vm_node_zone_stat(self):
+        # Other memory :  NR_ANON_MAPPED + NR_FILE_PAGES + NR_PAGETABLE \
+        # + NR_KERNEL_STACK_KB
+        vmstat_anon_pages = self.ramdump.read_word(
+                            'vm_node_stat[NR_ANON_MAPPED]')
+        vmstat_file_pages = self.ramdump.read_word(
+                            'vm_node_stat[NR_FILE_PAGES]')
+        vmstat_pagetbl = self.ramdump.read_word(
+                            'vm_zone_stat[NR_PAGETABLE]')
+        vmstat_kernelstack = self.ramdump.read_word(
+                            'vm_zone_stat[NR_KERNEL_STACK_KB]')
+        other_mem = (vmstat_anon_pages + vmstat_file_pages + vmstat_pagetbl +
+                     (vmstat_kernelstack/4))
         other_mem = self.pages_to_mb(other_mem)
         return other_mem
 
@@ -98,16 +114,33 @@ class MemStats(RamParser):
         total_mem = self.ramdump.read_word('totalram_pages')
         total_mem = self.pages_to_mb(total_mem)
 
-        # Free Memory
-        total_free = self.ramdump.read_word('vm_stat[NR_FREE_PAGES]')
-        total_free = self.pages_to_mb(total_free)
+        if (self.ramdump.kernel_version < (4, 9, 0)):
+           # Free Memory
+           total_free = self.ramdump.read_word('vm_stat[NR_FREE_PAGES]')
+           total_free = self.pages_to_mb(total_free)
 
-        # slab Memory
-        slab_rec = \
-            self.ramdump.read_word('vm_stat[NR_SLAB_RECLAIMABLE]')
-        slab_unrec = \
-            self.ramdump.read_word('vm_stat[NR_SLAB_UNRECLAIMABLE]')
-        total_slab = self.pages_to_mb(slab_rec + slab_unrec)
+           # slab Memory
+           slab_rec = \
+               self.ramdump.read_word('vm_stat[NR_SLAB_RECLAIMABLE]')
+           slab_unrec = \
+               self.ramdump.read_word('vm_stat[NR_SLAB_UNRECLAIMABLE]')
+           total_slab = self.pages_to_mb(slab_rec + slab_unrec)
+
+           #others
+           other_mem = self.calculate_vm_stat()
+        else:
+           # Free Memory
+           total_free = self.ramdump.read_word('vm_zone_stat[NR_FREE_PAGES]')
+           total_free = self.pages_to_mb(total_free)
+
+           # slab Memory
+           slab_rec = \
+               self.ramdump.read_word('vm_zone_stat[NR_SLAB_RECLAIMABLE]')
+           slab_unrec = \
+               self.ramdump.read_word('vm_zone_stat[NR_SLAB_UNRECLAIMABLE]')
+           total_slab = self.pages_to_mb(slab_rec + slab_unrec)
+           #others
+           other_mem = self.calculate_vm_node_zone_stat()
 
         # ion memory
         ion_mem = self.calculate_ionmem()
@@ -135,9 +168,6 @@ class MemStats(RamParser):
         self.vmalloc_size = 0
         # vmalloc area
         self.calculate_vmalloc()
-
-        # Others
-        other_mem = self.calculate_others()
 
         # Output prints
         out_mem_stat.write('{0:30}: {1:8} MB'.format(
