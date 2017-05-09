@@ -476,7 +476,7 @@ class DebugImage_v2():
                             client_entry + dump_entry_id_offset, False)
 
             if (client_id < 0 or
-                    client_id > len(self.dump_data_id_lookup_table)):
+                    client_id >= len(self.dump_data_id_lookup_table)):
                 print_out_str(
                     '!!! Invalid dump client id found {0:x}'.format(client_id))
                 continue
