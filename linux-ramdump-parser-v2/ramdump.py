@@ -27,6 +27,8 @@ import gdbmi
 from print_out import print_out_str
 from mmu import Armv7MMU, Armv7LPAEMMU, Armv8MMU
 import parser_util
+import minidump_util
+from importlib import import_module
 
 FP = 11
 SP = 13
@@ -49,7 +51,8 @@ extra_mem_file_names = ['EBI1CS1.BIN', 'DDRCS1.BIN', 'ebi1_cs1.bin',
 
 DDR_FILE_NAMES = ['DDRCS0.BIN', 'DDRCS1.BIN', 'DDRCS0_0.BIN',
                   'DDRCS1_0.BIN', 'DDRCS0_1.BIN', 'DDRCS1_1.BIN']
-OTHER_DUMP_FILE_NAMES = ['PIMEM.BIN', 'OCIMEM.BIN']
+OTHER_DUMP_FILE_NAMES = ['PIMEM.BIN', 'OCIMEM.BIN','md_shared_imem.BIN',
+                         'md_smem_info.BIN']
 RAM_FILE_NAMES = set(DDR_FILE_NAMES +
                      OTHER_DUMP_FILE_NAMES +
                      first_mem_file_names +
@@ -499,6 +502,8 @@ class RamDump():
 
     def __init__(self, options, nm_path, gdb_path, objdump_path):
         self.ebi_files = []
+        self.ebi_files_minidump = []
+        self.ebi_pa_name_map = {}
         self.phys_offset = None
         self.kaslr_offset = options.kaslr_offset
         self.tz_start = 0
@@ -530,6 +535,20 @@ class RamDump():
         self.ipc_log_help = options.ipc_help
         self.use_stdout = options.stdout
         self.kernel_version = (0, 0, 0)
+        self.minidump = options.minidump
+        self.elffile = None
+        self.ram_elf_file = None
+
+        if self.minidump:
+            try:
+                mod = import_module('elftools.elf.elffile')
+                ELFFile = mod.ELFFile
+                StringTableSection = mod.StringTableSection
+                mod = import_module('elftools.common.py3compat')
+                bytes2str = mod.bytes2str
+            except ImportError:
+                print "Oops, missing required library for minidump. Check README"
+                sys.exit(1)
 
         if options.ram_addr is not None:
             # TODO sanity check to make sure the memory regions don't overlap
@@ -540,11 +559,31 @@ class RamDump():
                         'Could not open {0}. Will not be part of dump'.format(file_path))
                     continue
                 self.ebi_files.append((fd, start, end, file_path))
-        else:
+        elif not options.minidump:
             if not self.auto_parse(options.autodump):
                 return None
-        if self.ebi_start == 0:
-            self.ebi_start = self.ebi_files[0][1]
+        if options.minidump:
+            file_path = options.ram_elf_addr
+            self.ram_elf_file = file_path
+            fd = open(file_path, 'rb')
+            self.elffile = ELFFile(fd)
+            for idx, s in enumerate(self.elffile.iter_segments()):
+                pa = int(s['p_paddr'])
+                va = int(s['p_vaddr'])
+                size = int(s['p_filesz'])
+                end_addr = pa + size
+                for section in self.elffile.iter_sections():
+                    if (not section.is_null() and
+                            s.section_in_segment(section)):
+                        self.ebi_pa_name_map[pa] = section.name
+                self.ebi_files_minidump.append((idx, pa, end_addr, va,size))
+
+        if options.minidump:
+            if self.ebi_start == 0:
+                self.ebi_start = self.ebi_files_minidump[0][1]
+        else:
+            if self.ebi_start == 0:
+                self.ebi_start = self.ebi_files[0][1]
         if self.phys_offset is None:
             self.get_hw_id()
 
@@ -600,10 +639,12 @@ class RamDump():
         self.swapper_pg_dir_addr = self.address_of('swapper_pg_dir')
         if self.swapper_pg_dir_addr is None:
             print_out_str('!!! Could not get the swapper page directory!')
-            print_out_str(
-                '!!! Your vmlinux is probably wrong for these dumps')
-            print_out_str('!!! Exiting now')
-            sys.exit(1)
+            if not self.minidump:
+                print_out_str(
+                    '!!! Your vmlinux is probably wrong for these dumps')
+
+                print_out_str('!!! Exiting now')
+                sys.exit(1)
 
         stext = self.address_of('stext')
         if self.kimage_voffset is None:
@@ -664,11 +705,12 @@ class RamDump():
                 '!!! Your vmlinux is probably wrong for these dumps')
             print_out_str('!!! Exiting now')
             sys.exit(1)
-        if not self.get_config():
-            print_out_str('!!! Could not get saved configuration')
-            print_out_str(
-                '!!! This is really bad and probably indicates RAM corruption')
-            print_out_str('!!! Some features may be disabled!')
+        if not self.minidump:
+            if not self.get_config():
+                print_out_str('!!! Could not get saved configuration')
+                print_out_str(
+                    '!!! This is really bad and probably indicates RAM corruption')
+                print_out_str('!!! Some features may be disabled!')
 
         self.unwind = self.Unwinder(self)
 
@@ -755,14 +797,17 @@ class RamDump():
         return s in self.config
 
     def kernel_virt_to_phys(self, addr):
-        va_bits = 39
-        if self.kimage_voffset is None:
-            return addr - self.page_offset + self.phys_offset
+        if self.minidump:
+            return minidump_util.minidump_virt_to_phys(self.ebi_files_minidump,addr)
         else:
-            if addr & (1 << (va_bits - 1)):
+            va_bits = 39
+            if self.kimage_voffset is None:
                 return addr - self.page_offset + self.phys_offset
             else:
-                return addr - (self.kimage_voffset)
+                if addr & (1 << (va_bits - 1)):
+                    return addr - self.page_offset + self.phys_offset
+                else:
+                    return addr - (self.kimage_voffset)
 
     def get_version(self):
         banner_addr = self.address_of('linux_banner')
@@ -803,10 +848,34 @@ class RamDump():
         else:
             print_out_str('!!! Could not lookup saved command line address')
             return False
+        
+    def print_socinfo_minidump(self):
+        content_socinfo = None
+        boards = get_supported_boards()
+        for board in boards:
+            if self.hw_id == board.board_num:
+                content_socinfo = board.ram_start + board.smem_addr_buildinfo
+                break
+        sernum_offset = self.field_offset('struct socinfo_v10', 'serial_number')
+        if sernum_offset is None:
+            sernum_offset = self.field_offset('struct socinfo_v0_10', 'serial_number')
+            if sernum_offset is None:
+                print_out_str("No serial number information available")
+                return False
+        if content_socinfo:
+            addr_of_sernum = content_socinfo + sernum_offset
+            serial_number = self.read_u32(addr_of_sernum, False)
+            if serial_number is not None:
+                print_out_str('Serial number %s' % hex(serial_number))
+                return True
+            return False
+
+        return False
 
     def print_socinfo(self):
         content_socinfo = hex(self.read_pointer('socinfo'))
         content_socinfo = content_socinfo.strip('L')
+
         sernum_offset = self.field_offset('struct socinfo_v10', 'serial_number')
         if sernum_offset is None:
             sernum_offset = self.field_offset('struct socinfo_v0_10', 'serial_number')
@@ -819,6 +888,7 @@ class RamDump():
         if serial_number is not None:
             print_out_str('Serial number %s' % hex(serial_number))
             return True
+
         return False
 
     def auto_parse(self, file_path):
@@ -889,41 +959,46 @@ class RamDump():
             ebi_path = os.path.abspath(ram[3])
             startup_script.write('data.load.binary {0} 0x{1:x}\n'.format(
                 ebi_path, ram[1]).encode('ascii', 'ignore'))
-        if self.arm64:
-            startup_script.write('Register.Set NS 1\n'.encode('ascii', 'ignore'))
-            startup_script.write('Data.Set SPR:0x30201 %Quad 0x{0:x}\n'.format(
-                self.kernel_virt_to_phys(self.swapper_pg_dir_addr))
-                .encode('ascii', 'ignore'))
+        if self.minidump:
+            dload_ram_elf = 'data.load.elf {} /LOGLOAD /nosymbol\n'.format(self.ram_elf_file)
+            startup_script.write(dload_ram_elf.encode('ascii', 'ignore'))
 
-            if is_cortex_a53:
-                startup_script.write('Data.Set SPR:0x30202 %Quad 0x00000012B5193519\n'.encode('ascii', 'ignore'))
-                startup_script.write('Data.Set SPR:0x30A20 %Quad 0x000000FF440C0400\n'.encode('ascii', 'ignore'))
-                startup_script.write('Data.Set SPR:0x30A30 %Quad 0x0000000000000000\n'.encode('ascii', 'ignore'))
-                startup_script.write('Data.Set SPR:0x30100 %Quad 0x0000000034D5D91D\n'.encode('ascii', 'ignore'))
+        if not self.minidump:
+            if self.arm64:
+                startup_script.write('Register.Set NS 1\n'.encode('ascii', 'ignore'))
+                startup_script.write('Data.Set SPR:0x30201 %Quad 0x{0:x}\n'.format(
+                    self.kernel_virt_to_phys(self.swapper_pg_dir_addr))
+                    .encode('ascii', 'ignore'))
+
+                if is_cortex_a53:
+                    startup_script.write('Data.Set SPR:0x30202 %Quad 0x00000012B5193519\n'.encode('ascii', 'ignore'))
+                    startup_script.write('Data.Set SPR:0x30A20 %Quad 0x000000FF440C0400\n'.encode('ascii', 'ignore'))
+                    startup_script.write('Data.Set SPR:0x30A30 %Quad 0x0000000000000000\n'.encode('ascii', 'ignore'))
+                    startup_script.write('Data.Set SPR:0x30100 %Quad 0x0000000034D5D91D\n'.encode('ascii', 'ignore'))
+                else:
+                    startup_script.write('Data.Set SPR:0x30202 %Quad 0x00000032B5193519\n'.encode('ascii', 'ignore'))
+                    startup_script.write('Data.Set SPR:0x30A20 %Quad 0x000000FF440C0400\n'.encode('ascii', 'ignore'))
+                    startup_script.write('Data.Set SPR:0x30A30 %Quad 0x0000000000000000\n'.encode('ascii', 'ignore'))
+                    startup_script.write('Data.Set SPR:0x30100 %Quad 0x0000000004C5D93D\n'.encode('ascii', 'ignore'))
+
+                startup_script.write('Register.Set CPSR 0x3C5\n'.encode('ascii', 'ignore'))
+                startup_script.write('MMU.Delete\n'.encode('ascii', 'ignore'))
+                startup_script.write('MMU.SCAN PT 0xFFFFFF8000000000--0xFFFFFFFFFFFFFFFF\n'.encode('ascii', 'ignore'))
+                startup_script.write('mmu.on\n'.encode('ascii', 'ignore'))
+                startup_script.write('mmu.pt.list 0xffffff8000000000\n'.encode('ascii', 'ignore'))
             else:
-                startup_script.write('Data.Set SPR:0x30202 %Quad 0x00000032B5193519\n'.encode('ascii', 'ignore'))
-                startup_script.write('Data.Set SPR:0x30A20 %Quad 0x000000FF440C0400\n'.encode('ascii', 'ignore'))
-                startup_script.write('Data.Set SPR:0x30A30 %Quad 0x0000000000000000\n'.encode('ascii', 'ignore'))
-                startup_script.write('Data.Set SPR:0x30100 %Quad 0x0000000004C5D93D\n'.encode('ascii', 'ignore'))
-
-            startup_script.write('Register.Set CPSR 0x3C5\n'.encode('ascii', 'ignore'))
-            startup_script.write('MMU.Delete\n'.encode('ascii', 'ignore'))
-            startup_script.write('MMU.SCAN PT 0xFFFFFF8000000000--0xFFFFFFFFFFFFFFFF\n'.encode('ascii', 'ignore'))
-            startup_script.write('mmu.on\n'.encode('ascii', 'ignore'))
-            startup_script.write('mmu.pt.list 0xffffff8000000000\n'.encode('ascii', 'ignore'))
-        else:
-            startup_script.write(
-                'PER.S.F C15:0x2 %L 0x{0:x}\n'.format(self.mmu.ttbr).encode('ascii', 'ignore'))
-            if isinstance(self.mmu, Armv7LPAEMMU):
-                # TTBR1. This gets setup once and never change again even if TTBR0
-                # changes
-                startup_script.write('PER.S.F C15:0x102 %L 0x{0:x}\n'.format(
-                    self.mmu.ttbr + 0x4000).encode('ascii', 'ignore'))
-                # TTBCR with EAE and T1SZ set approprately
                 startup_script.write(
-                    'PER.S.F C15:0x202 %L 0x80030000\n'.encode('ascii', 'ignore'))
-            startup_script.write('mmu.on\n'.encode('ascii', 'ignore'))
-            startup_script.write('mmu.scan\n'.encode('ascii', 'ignore'))
+                    'PER.S.F C15:0x2 %L 0x{0:x}\n'.format(self.mmu.ttbr).encode('ascii', 'ignore'))
+                if isinstance(self.mmu, Armv7LPAEMMU):
+                    # TTBR1. This gets setup once and never change again even if TTBR0
+                    # changes
+                    startup_script.write('PER.S.F C15:0x102 %L 0x{0:x}\n'.format(
+                        self.mmu.ttbr + 0x4000).encode('ascii', 'ignore'))
+                    # TTBCR with EAE and T1SZ set approprately
+                    startup_script.write(
+                        'PER.S.F C15:0x202 %L 0x80030000\n'.encode('ascii', 'ignore'))
+                startup_script.write('mmu.on\n'.encode('ascii', 'ignore'))
+                startup_script.write('mmu.scan\n'.encode('ascii', 'ignore'))
 
         where = os.path.abspath(self.vmlinux)
         if self.kaslr_offset is not None:
@@ -953,8 +1028,8 @@ class RamDump():
                     'task.config /opt/t32/demo/arm/kernel/linux/linux.t32\n'.encode('ascii', 'ignore'))
                 startup_script.write(
                     'menu.reprogram /opt/t32/demo/arm/kernel/linux/linux.men\n'.encode('ascii', 'ignore'))
-
-        startup_script.write('task.dtask\n'.encode('ascii', 'ignore'))
+        if not self.minidump:
+            startup_script.write('task.dtask\n'.encode('ascii', 'ignore'))
         startup_script.write(
             'v.v  %ASCII %STRING linux_banner\n'.encode('ascii', 'ignore'))
         if os.path.exists(out_path + '/regs_panic.cmm'):
@@ -1024,30 +1099,38 @@ class RamDump():
         boards = get_supported_boards()
 
         if (self.hw_id is None):
-            heap_toc_offset = self.field_offset('struct smem_shared', 'heap_toc')
-            if heap_toc_offset is None:
-                print_out_str(
-                    '!!!! Could not get a necessary offset for auto detection!')
-                print_out_str(
-                    '!!!! Please check the gdb path which is used for offsets!')
-                print_out_str('!!!! Also check that the vmlinux is not stripped')
-                print_out_str('!!!! Exiting...')
-                sys.exit(1)
+            if not self.minidump:
+                heap_toc_offset = self.field_offset('struct smem_shared', 'heap_toc')
+                if heap_toc_offset is None:
+                    print_out_str(
+                        '!!!! Could not get a necessary offset for auto detection!')
+                    print_out_str(
+                        '!!!! Please check the gdb path which is used for offsets!')
+                    print_out_str('!!!! Also check that the vmlinux is not stripped')
+                    print_out_str('!!!! Exiting...')
+                    sys.exit(1)
 
-            smem_heap_entry_size = self.sizeof('struct smem_heap_entry')
-            offset_offset = self.field_offset('struct smem_heap_entry', 'offset')
+                smem_heap_entry_size = self.sizeof('struct smem_heap_entry')
+                offset_offset = self.field_offset('struct smem_heap_entry', 'offset')
             for board in boards:
-                socinfo_start_addr = board.smem_addr + heap_toc_offset + smem_heap_entry_size * SMEM_HW_SW_BUILD_ID + offset_offset
+                if not self.minidump:
+                    socinfo_start_addr = board.smem_addr + heap_toc_offset + smem_heap_entry_size * SMEM_HW_SW_BUILD_ID + offset_offset
+                else:
+                    if hasattr(board, 'smem_addr_buildinfo'):
+                        socinfo_start_addr = board.smem_addr_buildinfo
+                    else:
+                        continue
                 if add_offset:
                     socinfo_start_addr += board.ram_start
-                soc_start = self.read_int(socinfo_start_addr, False)
-                if soc_start is None:
-                    continue
-
-                socinfo_start = board.smem_addr + soc_start
-                if add_offset:
-                    socinfo_start += board.ram_start
-
+                if not self.minidump:
+                    soc_start = self.read_int(socinfo_start_addr, False)
+                    if soc_start is None:
+                        continue
+                    socinfo_start = board.smem_addr + soc_start
+                    if add_offset:
+                        socinfo_start += board.ram_start
+                else:
+                    socinfo_start = socinfo_start_addr
                 socinfo_id = self.read_int(socinfo_start + 4, False)
                 if socinfo_id != board.socid:
                     continue
@@ -1117,7 +1200,10 @@ class RamDump():
     def virt_to_phys(self, virt_or_name):
         """Does a virtual-to-physical address lookup of the virtual address or
         variable name."""
-        return self.mmu.virt_to_phys(self.resolve_virt(virt_or_name))
+        if self.minidump:
+            return minidump_util.minidump_virt_to_phys(self.ebi_files_minidump,self.resolve_virt(virt_or_name))
+        else:
+            return self.mmu.virt_to_phys(self.resolve_virt(virt_or_name))
 
     def setup_symbol_tables(self):
         stream = os.popen(self.nm_path + ' -n ' + self.vmlinux)
@@ -1249,18 +1335,24 @@ class RamDump():
             return (self.lookup_table[mid][1], self.lookup_table[mid + 1][0] - self.lookup_table[mid][0])
 
     def read_physical(self, addr, length):
-        ebi = (-1, -1, -1)
-        for a in self.ebi_files:
-            fd, start, end, path = a
-            if addr >= start and addr <= end:
-                ebi = a
-                break
-        if ebi[0] is -1:
-            return None
-        offset = addr - ebi[1]
-        ebi[0].seek(offset)
-        a = ebi[0].read(length)
-        return a
+        if self.minidump:
+            addr_data = minidump_util.read_physical_minidump(
+                        self.ebi_files_minidump, self.ebi_files,self.elffile,
+                        addr, length)
+            return addr_data
+        else:
+            ebi = (-1, -1, -1)
+            for a in self.ebi_files:
+                fd, start, end, path = a
+                if addr >= start and addr <= end:
+                    ebi = a
+                    break
+            if ebi[0] is -1:
+                return None
+            offset = addr - ebi[1]
+            ebi[0].seek(offset)
+            a = ebi[0].read(length)
+            return a
 
     def read_dword(self, addr_or_name, virtual=True, cpu=None):
         s = self.read_string(addr_or_name, '<Q', virtual, cpu)
