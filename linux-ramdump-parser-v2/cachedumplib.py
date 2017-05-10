@@ -231,16 +231,16 @@ class L1_ICache_A53(CacheDumpType_v1):
         self.unsupported_header_offset = 0
         self.TagSize = 2
         self.LineSize = 16
-        self.NumSets = 0x80
+        self.NumSets = 0x100
         self.NumWays = 2
 
     def parse_tag_fn(self, output, data, nset, nway):
         if self.TagSize != 2:
             raise Exception('cache tag size mismatch')
 
-        valid = (data[0] >> 1) & 0x1
-        n = (data[0] >> 0) & 0x1
-        addr = (data[0] >> 0) & 0xffffffff
+        valid = (data[0] >> 29) & 0x3
+        n = (data[0] >> 28) & 0x1
+        addr = (data[0] >> 0) & 0xfffffff
 
         addr = (addr << 12) | (nset << 6)
         output.append(valid)

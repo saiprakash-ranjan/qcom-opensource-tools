@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -868,3 +868,6 @@ def get_wdog_timing(ramdump):
             last_jiffies_update/1000000000.0))
     print_out_str('Core which updates jiffies(tick_do_timer_cpu): {0}'.format(
         tick_do_timer_cpu))
+    epoch_ns = ramdump.read_word('cd.read_data[0].epoch_ns')
+    epoch_cyc = ramdump.read_word('cd.read_data[0].epoch_cyc')
+    print_out_str('epoch_ns: {0}ns  epoch_cyc: {1}'.format(epoch_ns,epoch_cyc))
