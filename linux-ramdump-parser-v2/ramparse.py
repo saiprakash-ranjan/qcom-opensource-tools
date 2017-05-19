@@ -349,6 +349,9 @@ if __name__ == '__main__':
         print_out_str('!!! Exiting now...')
         sys.exit(1)
 
+    if not dump.print_socinfo():
+        print_out_str('!!! No serial number information available.')
+
     if options.qdss:
         print_out_str('!!! --parse-qdss is now deprecated')
         print_out_str(

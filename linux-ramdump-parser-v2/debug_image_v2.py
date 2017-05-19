@@ -31,7 +31,7 @@ from tlbdumplib import lookup_tlb_type
 from vsens import VsensData
 
 MEMDUMPV2_MAGIC = 0x42445953
-MAX_NUM_ENTRIES = 0x130
+MAX_NUM_ENTRIES = 0x140
 TRACE_EVENT_FL_TRACEPOINT = 0x40
 
 class client(object):
@@ -54,11 +54,13 @@ class client(object):
     MSM_DUMP_DATA_L2_TLB = 0x120
     MSM_DUMP_DATA_LLC_CACHE = 0x121
     MSM_DUMP_DATA_SCANDUMP = 0xEB
+    MSM_DUMP_DATA_SCANDUMP_PER_CPU = 0x130
     MSM_DUMP_DATA_MAX = MAX_NUM_ENTRIES
 
 # Client functions will be executed in top-to-bottom order
 client_types = [
     ('MSM_DUMP_DATA_SCANDUMP', 'parse_scandump'),
+    ('MSM_DUMP_DATA_SCANDUMP_PER_CPU', 'parse_scandump'),
     ('MSM_DUMP_DATA_CPU_CTX', 'parse_cpu_ctx'),
     ('MSM_DUMP_DATA_L1_INST_TLB', 'parse_tlb_common'),
     ('MSM_DUMP_DATA_L1_DATA_TLB', 'parse_tlb_common'),
@@ -100,25 +102,36 @@ class DebugImage_v2():
             self.event_class = 'struct ftrace_event_class'
 
     def parse_scandump(self, version, start, end, client_id, ram_dump):
-        scandump_file_prefix = "scandump"
+        scandump_file_prefix = "scandump_core"
+        core_bin_prefix = "core"
         try:
             scan_wrapper_path = local_settings.scandump_parser_path
         except AttributeError:
             print_out_str('Could not find scandump_parser_path . Please define scandump_parser_path in local_settings')
             return
-        output = os.path.join(ram_dump.outdir, scandump_file_prefix)
-        input = os.path.join(ram_dump.outdir, "vv_msg_4_header.bin")
-        print_out_str(
-            'Parsing scandump context start {0:x} end {1:x} {2} {3}'.format(start, end, output, input))
         if ram_dump.arm64:
             arch = "aarch64"
+        if client_id == client.MSM_DUMP_DATA_SCANDUMP:
+            output = os.path.join(ram_dump.outdir, scandump_file_prefix)
+            input = os.path.join(ram_dump.outdir, "core.bin")
+        elif client_id >= client.MSM_DUMP_DATA_SCANDUMP_PER_CPU:
+            core_num = client_id & 0xF
+            output = '{0}_{1:x}'.format(scandump_file_prefix, core_num)
+            output = os.path.join(ram_dump.outdir, output)
+
+            input_filename = '{0}_{1:x}.bin'.format(core_bin_prefix, core_num)
+            input = os.path.join(ram_dump.outdir, input_filename)
+        print_out_str(
+            'Parsing scandump context start {0:x} end {1:x} {2} {3}'.format(start, end, output, input))
         header_bin = ram_dump.open_file(input)
+
         it = range(start, end)
         for i in it:
             val = ram_dump.read_byte(i, False)
             header_bin.write(struct.pack("<B", val))
         header_bin.close()
         subprocess.call('python {0} -d {1} -o {2} -f {3}'.format(scan_wrapper_path, input, output, arch))
+        return
 
     def parse_cpu_ctx(self, version, start, end, client_id, ram_dump):
         core = client_id - client.MSM_DUMP_DATA_CPU_CTX
@@ -504,6 +517,8 @@ class DebugImage_v2():
                     client.MSM_DUMP_DATA_L2_CACHE + i] = 'MSM_DUMP_DATA_L2_CACHE'
                 self.dump_data_id_lookup_table[
                     client.MSM_DUMP_DATA_ETM_REG + i] = 'MSM_DUMP_DATA_ETM_REG'
+                self.dump_data_id_lookup_table[
+                    client.MSM_DUMP_DATA_SCANDUMP_PER_CPU + i] = 'MSM_DUMP_DATA_SCANDUMP_PER_CPU'
 
         for i in range(0, 4):
                 self.dump_data_id_lookup_table[

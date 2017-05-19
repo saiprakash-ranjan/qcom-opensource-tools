@@ -804,6 +804,23 @@ class RamDump():
             print_out_str('!!! Could not lookup saved command line address')
             return False
 
+    def print_socinfo(self):
+        content_socinfo = hex(self.read_pointer('socinfo'))
+        content_socinfo = content_socinfo.strip('L')
+        sernum_offset = self.field_offset('struct socinfo_v10', 'serial_number')
+        if sernum_offset is None:
+            sernum_offset = self.field_offset('struct socinfo_v0_10', 'serial_number')
+            if sernum_offset is None:
+                print_out_str("No serial number information available")
+                return False
+        addr_of_sernum = hex(int(content_socinfo, 16) + sernum_offset)
+        addr_of_sernum = addr_of_sernum.strip('L')
+        serial_number = self.read_u32(int(addr_of_sernum, 16))
+        if serial_number is not None:
+            print_out_str('Serial number %s' % hex(serial_number))
+            return True
+        return False
+
     def auto_parse(self, file_path):
         for cls in sorted(AutoDumpInfo.__subclasses__(),
                           key=lambda x: x.priority, reverse=True):

@@ -27,20 +27,20 @@ class Slabinfo_summary(RamParser):
                         start,  slab_lru_offset,
                         max_page):
         page = self.ramdump.read_word(start)
-        if page == 0:
-            return
-        seen = []
         totalfree = 0
+        if page == 0:
+            return totalfree
+        seen = []
         mapcount = 0
         total_objects = 0
         inuse = 0
         while page != start:
             if page is None:
-                return
+                return totalfree
             if page in seen:
-                return
+                return totalfree
             if page > max_page:
-                return
+                return totalfree
             seen.append(page)
             page = page - slab_lru_offset
             mapcount = self.ramdump.read_structure_field(
