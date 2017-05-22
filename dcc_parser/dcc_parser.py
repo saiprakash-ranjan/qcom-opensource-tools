@@ -83,6 +83,7 @@ def read_config(config_pt):
         link_descriptor = 0x3 << 30
         loop_descriptor = 0x1 << 30
         rd_mod_wr_descriptor = 0x1 << 31
+	dcc_write_ind = 0x1 << 28
         link_second_arg = 7
         #indicates end of list
         on_zero_link_len = -1
@@ -98,8 +99,11 @@ def read_config(config_pt):
             break
 
         descriptor = val & (0x3 << 30)
+	read_write_ind = val & (0x1 << 28)
 
-        if descriptor == address_descriptor:
+	if read_write_ind == dcc_write_ind:
+            config_pt.seek(8, 1)
+        elif descriptor == address_descriptor:
             base = ((val & 0x0FFFFFFF) << 4)
             offset = 0
         elif descriptor == link_descriptor:
