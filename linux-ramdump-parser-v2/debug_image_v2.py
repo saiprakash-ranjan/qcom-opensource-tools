@@ -198,7 +198,7 @@ class DebugImage_v2():
         print_out_str(
             'Parsing {0} context start {1:x} end {2:x}'.format(client_name, start, end))
 
-        regs = DccSramDump(start, end)
+        regs = DccSramDump(start, end, ram_dump)
         if regs.dump_sram_img(ram_dump) is False:
             print_out_str('!!! Could not dump SRAM')
         else:
@@ -458,9 +458,14 @@ class DebugImage_v2():
             sram_file = os.path.join(out_dir, 'sram.bin')
         else:
             return
-
-        p = subprocess.Popen([sys.executable, dcc_parser_path, '-s', sram_file, '--out-dir', out_dir],
-                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        bin_dir = ram_dump.ram_addr
+        bin_dir="\\".join(bin_dir[0][0].split('\\')[:-1])
+        if (os.path.isfile(os.path.join(bin_dir, 'DCC_SRAM.BIN'))):
+            p = subprocess.Popen([sys.executable, dcc_parser_path, '-s', sram_file, '--out-dir', out_dir, '--v2'],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        else:
+            p = subprocess.Popen([sys.executable, dcc_parser_path, '-s', sram_file, '--out-dir', out_dir],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         print_out_str('--------')
         print_out_str(p.communicate()[0])
