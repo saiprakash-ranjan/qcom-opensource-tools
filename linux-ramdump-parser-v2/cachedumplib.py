@@ -445,7 +445,7 @@ class L1_DCache_KRYO3XX_SILVER(CacheDumpType_v1):
         self.NumSets = 0x80
         self.NumWays = 4
 
-    def MESI_to_string(MESI_d):
+    def MESI_to_string(self, MESI_d):
         if MESI_d == 0:
             return 'I'
         elif MESI_d == 1:
@@ -483,7 +483,7 @@ class L1_ICache_KRYO3XX_SILVER(CacheDumpType_v1):
         self.NumSets = 0x80
         self.NumWays = 4
 
-    def valid_to_string(valid_d):
+    def valid_to_string(self, valid_d):
         if valid_d == 0:
             return 'A32'
         elif valid_d == 1:
@@ -518,7 +518,7 @@ class L1_DCache_KRYO3XX_GOLD(CacheDumpType_v1):
         self.NumSets = 0x40
         self.NumWays = 16
 
-    def MESI_to_string(MESI_d):
+    def MESI_to_string(self, MESI_d):
         if MESI_d == 0:
             return 'I'
         elif MESI_d == 1:
@@ -537,7 +537,7 @@ class L1_DCache_KRYO3XX_GOLD(CacheDumpType_v1):
         mesi_d = (data[0] >> 2) & 0x3
 
         addr = (addr_higher << 22) | addr_lower
-        mesi = MESI_to_string(mesi_d)
+        mesi = self.MESI_to_string(mesi_d)
         output.append(addr)
         output.append(mesi)
 
