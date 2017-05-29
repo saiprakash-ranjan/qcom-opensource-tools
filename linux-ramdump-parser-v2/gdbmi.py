@@ -1,4 +1,4 @@
-# Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -12,6 +12,8 @@
 import sys
 import re
 import subprocess
+import module_table
+from print_out import print_out_str
 
 GDB_SENTINEL = '(gdb) '
 GDB_DATA_LINE = '~'
@@ -62,6 +64,7 @@ class GdbMI(object):
         self.kaslr_offset = kaslr_offset
         self._cache = {}
         self._gdbmi = None
+        self.mod_table = None
 
     def open(self):
         """Open the connection to the ``gdbmi`` backend. Not needed if using
@@ -94,6 +97,14 @@ class GdbMI(object):
             line = self._gdbmi.stdout.readline().rstrip('\r\n')
             if line == GDB_SENTINEL:
                 break
+
+    def setup_module_table(self, module_table):
+        self.mod_table = module_table
+        d = {"\\":"\\\\"}
+        for mod_tbl_ent in self.mod_table.module_table:
+            load_mod_sym_cmd = 'add-symbol-file %s 0x%x' % (mod_tbl_ent.get_sym_path(), mod_tbl_ent.module_offset)
+            gdb_cmd = ''.join(d.get(c, c) for c in load_mod_sym_cmd)
+            self._run(gdb_cmd)
 
     def _run(self, cmd, skip_cache=False, save_in_cache=True):
         """Runs a gdb command and returns a GdbMIResult of the result. Results
