@@ -75,6 +75,7 @@ def read_config(config_pt):
         link_descriptor = 0
         loop_descriptor = None
         rd_mod_wr_descriptor = None
+        dcc_write_ind = None
         link_second_arg = 8
         # We return zero and fail
         on_zero_link_len = 0
