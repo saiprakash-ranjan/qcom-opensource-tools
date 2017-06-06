@@ -451,6 +451,7 @@ class Board660(Board):
         self.cpu = 'CORTEXA53'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6000000
+        self.smem_addr_buildinfo = 0x6006ec0
         self.phys_offset = 0x80000000
         self.imem_start = 0x14680000
         self.kaslr_addr = 0x146bf6d0

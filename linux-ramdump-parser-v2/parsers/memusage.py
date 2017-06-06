@@ -1,4 +1,4 @@
-# Copyright (c) 2016 The Linux Foundation. All rights reserved.
+# Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -18,7 +18,10 @@ def do_dump_process_memory(ramdump):
         "NR_FREE_PAGES", "NR_SLAB_RECLAIMABLE",
         "NR_SLAB_UNRECLAIMABLE", "NR_SHMEM"]
     vmstat_data = {}
-    vmstats_addr = ramdump.address_of('vm_stat')
+    if(ramdump.kernel_version >= (4,9,0)):
+        vmstats_addr = ramdump.address_of('vm_zone_stat')
+    else:
+        vmstats_addr = ramdump.address_of('vm_stat')
     for x in vmstat_names:
         i = ramdump.gdbmi.get_value_of(x)
         vmstat_data[x] = ramdump.read_word(

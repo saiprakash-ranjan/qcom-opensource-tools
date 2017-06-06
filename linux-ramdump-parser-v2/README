@@ -72,6 +72,11 @@ specify the paths to these tools. This can be done in three ways
 1) Using --gdb-path and --nm-path to specify the absolute path
 2) Using CROSS_COMPILE to specify the prefix
 3) Using local_settings.py as described below
+4) Install this library from https://github.com/eliben/pyelftools
+    - Download the code from avobe github link. Download the zip file.
+    - After download the zip file, you will find a folder pyelftools-master.
+    - Inside this folder you will find another folder named "elftools"
+	- copy that entire folder and paste it in below directory <installed Python path>\Lib\site-packages
 
 Just having gdb/nm on the path is not supported as there are too many
 variations on names to invoke.

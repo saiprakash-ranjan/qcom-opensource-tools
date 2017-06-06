@@ -145,5 +145,8 @@ class Slabinfo_summary(RamParser):
 
     def parse(self):
         slab_out = self.ramdump.open_file('slabsummary.txt')
-        self.print_slab_summary(slab_out)
+        if(self.ramdump.is_config_defined('CONFIG_SLUB_DEBUG_ON')):
+            self.print_slab_summary(slab_out)
+        else:
+            slab_out.write('CONFIG_SLUB_DEBUG_ON is disabled in this build')
         slab_out.close()
