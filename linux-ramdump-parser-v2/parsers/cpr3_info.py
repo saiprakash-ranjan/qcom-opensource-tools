@@ -1,4 +1,4 @@
-# Copyright (c) 2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -14,7 +14,7 @@ from print_out import print_out_str
 from parser_util import register_parser, RamParser
 from collections import defaultdict
 
-
+CPRH_CTRL_TYPE = 2
 @register_parser('--cpr3-info', 'Print CPR3 information')
 class CPR3Info(RamParser):
     def __init__(self, *args):
@@ -264,7 +264,7 @@ class CPR3Info(RamParser):
                                          "not yet executed")
         self.output.append(tmp)
 
-    def dump_cpr3_regulator_state(self, vreg_addr):
+    def dump_cpr3_regulator_state(self, vreg_addr, ctrl_type):
         tmp = ""
         if vreg_addr is None:
             return
@@ -318,13 +318,14 @@ class CPR3Info(RamParser):
                 'speed_bin_fuse'))
         tmp += "%-30s = %d\n" % ("Speed-bin fuse", speed_bin_fuse)
 
-        tmp += "\n%-30s = %d/%d\n" % ("CPR corner", current_corner + 1,
-                                      corner_count)
-        if vreg_enabled is True:
-            vreg_enabled = 1
-        else:
-            vreg_enabled = 0
-        tmp += "%-30s = %d\n" % ("Enabled", vreg_enabled)
+        if ctrl_type != CPRH_CTRL_TYPE:
+            tmp += "\n%-30s = %d/%d\n" % ("CPR corner", current_corner + 1,
+                                          corner_count)
+            if vreg_enabled is True:
+                vreg_enabled = 1
+            else:
+                vreg_enabled = 0
+            tmp += "%-30s = %d\n" % ("Enabled", vreg_enabled)
 
         if ldo_regulator_addr != 0:
             if ldo_mode_allowed is True:
@@ -340,8 +341,10 @@ class CPR3Info(RamParser):
             vreg_addr + self.ramdump.field_offset(
                 'struct cpr3_regulator', 'corner'))
         size = self.ramdump.sizeof("struct cpr3_corner")
-        corner_addr = corner_addr + current_corner * size
-        self.dump_cpr3_corner_info(corner_addr, 0, 1, 0)
+
+        if ctrl_type != CPRH_CTRL_TYPE:
+            corner_addr = corner_addr + current_corner * size
+            self.dump_cpr3_corner_info(corner_addr, 0, 1, 0)
         self.dump_cpr3_regulator_voltages(vreg_addr)
 
         rdev_addr = self.ramdump.read_word(
@@ -349,9 +352,10 @@ class CPR3Info(RamParser):
                                                   'rdev'))
         offset = self.ramdump.field_offset('struct regulator_dev',
                                            'consumer_list')
-        self.dump_consumer(rdev_addr + offset)
+        if ctrl_type != CPRH_CTRL_TYPE:
+            self.dump_consumer(rdev_addr + offset)
 
-    def dump_cpr3_thread_state(self, thread_addr):
+    def dump_cpr3_thread_state(self, thread_addr, ctrl_type):
         tmp = ""
         thread_id = self.ramdump.read_u32(
             thread_addr + self.ramdump.field_offset(
@@ -361,10 +365,12 @@ class CPR3Info(RamParser):
         tmp += "-" * 80 + "\n"
         tmp += "Thread: %d\n" % thread_id
         tmp += "-" * 80 + "\n"
-        tmp += "CPR aggregated voltages:\n"
+        if ctrl_type != CPRH_CTRL_TYPE:
+            tmp += "CPR aggregated voltages:\n"
         self.output.append(tmp)
+        if ctrl_type != CPRH_CTRL_TYPE:
+            self.dump_cpr3_corner_info(aggr_corner_addr, 0, 1, 0)
 
-        self.dump_cpr3_corner_info(aggr_corner_addr, 0, 1, 0)
         vreg_addr = self.ramdump.read_word(
             thread_addr +
             self.ramdump.field_offset('struct cpr3_thread', 'vreg'))
@@ -375,7 +381,7 @@ class CPR3Info(RamParser):
 
         size_reg = self.ramdump.sizeof('struct cpr3_regulator')
         for i in range(vreg_count):
-            self.dump_cpr3_regulator_state(vreg_addr + i * size_reg)
+            self.dump_cpr3_regulator_state(vreg_addr + i * size_reg, ctrl_type)
 
     def cpr_walker(self, ctrl_addr):
         if ctrl_addr == self.head:
@@ -397,24 +403,46 @@ class CPR3Info(RamParser):
             ctrl_addr + self.ramdump.field_offset(
                 'struct cpr3_controller',
                 'cpr_allowed_sw'))
+        cpr_allowed_hw = self.ramdump.read_bool(
+            ctrl_addr + self.ramdump.field_offset(
+                'struct cpr3_controller',
+                'cpr_allowed_hw'))
         cpr_enabled = self.ramdump.read_bool(
             ctrl_addr + self.ramdump.field_offset(
                 'struct cpr3_controller', 'cpr_enabled'))
-        if supports_hw_closed_loop == 1:
-            if cpr_allowed_sw == 0:
+        ctrl_type = self.ramdump.read_int(
+            ctrl_addr + self.ramdump.field_offset(
+                'struct cpr3_controller',
+                'ctrl_type'))
+
+        if cpr_allowed_sw == 0 or cpr_allowed_hw == 0:
                 cpr_mode = "open-loop"
-            elif use_hw_closed_loop == 0:
+        elif supports_hw_closed_loop == 1 and ctrl_type != CPRH_CTRL_TYPE:
+            if use_hw_closed_loop == 0:
                 cpr_mode = "SW closed-loop"
             else:
                 cpr_mode = "HW closed-loop"
-        else:
-            if cpr_allowed_sw == 0:
+        elif supports_hw_closed_loop == 1 and ctrl_type == CPRH_CTRL_TYPE:
+            if use_hw_closed_loop == 0:
                 cpr_mode = "open-loop"
             else:
-                cpr_mode = "closed-loop"
-        tmp = ""
-        if cpr_controller_name is None:
+                cpr_mode = "full HW closed-loop"
+        else:
+            cpr_mode = "closed-loop"
+
+        thread_addr = self.ramdump.read_word(
+            ctrl_addr +
+            self.ramdump.field_offset(
+                'struct cpr3_controller', 'thread'))
+        if thread_addr is None:
             return
+        thread_ctrl_addr = self.ramdump.read_word(
+            thread_addr +
+            self.ramdump.field_offset('struct cpr3_thread', 'ctrl'))
+
+        if cpr_controller_name is None or thread_ctrl_addr != ctrl_addr:
+            return
+        tmp = ""
         tmp += "=" * 80 + "\n"
         tmp += 'CPR3 controller state: %s\n' % cpr_controller_name
         tmp += "=" * 80 + "\n"
@@ -425,28 +453,34 @@ class CPR3Info(RamParser):
         tmp = ""
         self.get_apm_threshold(ctrl_addr)
         self.get_aging_info(ctrl_addr)
-        self.dump_vdd_regulator(ctrl_addr)
-        if cpr_allowed_sw == 1 and use_hw_closed_loop == 1:
+        if ctrl_type != CPRH_CTRL_TYPE:
+            self.dump_vdd_regulator(ctrl_addr)
+
+        if cpr_allowed_sw == 1 and use_hw_closed_loop == 1 and ctrl_type != CPRH_CTRL_TYPE:
             tmp = "* The actual voltage at the PMIC may be anywhere " \
                   "between the aggregated ceiling and floor voltage when"\
                   " using CPR HW closed-loop mode.\n"
-            self.output.append(tmp)
-            tmp = ""
-        aggr_corner_addr = ctrl_addr + self.ramdump.field_offset(
-            'struct cpr3_controller', 'aggr_corner')
-        self.output.append("\nCPR aggregated voltages:\n")
-        self.dump_cpr3_corner_info(aggr_corner_addr, 0, 0, 0)
-        thread_addr = self.ramdump.read_word(
-            ctrl_addr +
-            self.ramdump.field_offset(
-                'struct cpr3_controller', 'thread'))
+        elif ctrl_type == CPRH_CTRL_TYPE:
+            tmp = "* With full HW closed-loop operation, the expected PMIC " \
+                  "voltage can be checked via the CPRH_STATUS and " \
+                  "L2_SAW4_PMIC_STS registers in the DCC register dump.\n"
+
+        self.output.append(tmp)
+        tmp = ""
+
+        if ctrl_type != CPRH_CTRL_TYPE:
+            aggr_corner_addr = ctrl_addr + self.ramdump.field_offset(
+                'struct cpr3_controller', 'aggr_corner')
+            self.output.append("\nCPR aggregated voltages:\n")
+            self.dump_cpr3_corner_info(aggr_corner_addr, 0, 0, 0)
+
         thread_count = self.ramdump.read_int(
             ctrl_addr +
             self.ramdump.field_offset(
                 'struct cpr3_controller', 'thread_count'))
         size_thr = self.ramdump.sizeof('struct cpr3_thread')
         for i in range(thread_count):
-            self.dump_cpr3_thread_state(thread_addr + i * size_thr)
+            self.dump_cpr3_thread_state(thread_addr + i * size_thr, ctrl_type)
         # print new line for each regulator struct
         tmp += '\n'
         self.output.append(tmp)

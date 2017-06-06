@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -42,7 +42,87 @@ BUILD_ID_LENGTH = 32
 
 first_mem_file_names = ['EBICS0.BIN',
                         'EBI1.BIN', 'DDRCS0.BIN', 'ebi1_cs0.bin', 'DDRCS0_0.BIN']
-extra_mem_file_names = ['EBI1CS1.BIN', 'DDRCS1.BIN', 'ebi1_cs1.bin', 'DDRCS0_1.BIN', 'DDRCS1_0.BIN', 'DDRCS1_1.BIN']
+extra_mem_file_names = ['EBI1CS1.BIN', 'DDRCS1.BIN', 'ebi1_cs1.bin',
+                        'DDRCS0_1.BIN', 'DDRCS1_0.BIN', 'DDRCS1_1.BIN',
+                        'DDRCS1_2.BIN', 'DDRCS1_3.BIN', 'DDRCS1_4.BIN',
+                        'DDRCS1_5.BIN']
+
+DDR_FILE_NAMES = ['DDRCS0.BIN', 'DDRCS1.BIN', 'DDRCS0_0.BIN',
+                  'DDRCS1_0.BIN', 'DDRCS0_1.BIN', 'DDRCS1_1.BIN']
+OTHER_DUMP_FILE_NAMES = ['PIMEM.BIN', 'OCIMEM.BIN']
+RAM_FILE_NAMES = set(DDR_FILE_NAMES +
+                     OTHER_DUMP_FILE_NAMES +
+                     first_mem_file_names +
+                     extra_mem_file_names)
+
+
+class AutoDumpInfo(object):
+    priority = 0
+
+    def __init__(self, autodumpdir):
+        self.autodumpdir = autodumpdir
+        self.ebi_files = []
+
+    def parse(self):
+        for (filename, base_addr) in self._parse():
+            fullpath = os.path.join(self.autodumpdir, filename)
+            end = base_addr + os.path.getsize(fullpath) - 1
+            self.ebi_files.append((open(fullpath, 'rb'), base_addr, end, fullpath))
+            # sort by addr, DDR files first. The goal is for
+            # self.ebi_files[0] to be the DDR file with the lowest address.
+            self.ebi_files.sort(
+                key=lambda x: (os.path.basename(x[-1]) not in DDR_FILE_NAMES,
+                               x[1]))
+
+    def _parse(self):
+        # Implementations should return an interable of (filename, base_addr)
+        raise NotImplementedError
+
+
+class AutoDumpInfoCMM(AutoDumpInfo):
+    # Parses CMM scripts (like load.cmm)
+    def _parse(self):
+        filename = 'load.cmm'
+        if not os.path.exists(os.path.join(self.autodumpdir, filename)):
+            print_out_str('!!! AutoParse could not find load.cmm!')
+            return
+
+        with open(os.path.join(self.autodumpdir, filename)) as f:
+            for line in f.readlines():
+                words = line.split()
+                if len(words) == 4 and words[1] in RAM_FILE_NAMES:
+                    fname = words[1]
+                    start = int(words[2], 16)
+                    yield fname, start
+
+
+class AutoDumpInfoDumpInfoTXT(AutoDumpInfo):
+    # Parses dump_info.txt
+    priority = 1
+
+    def _parse(self):
+        filename = 'dump_info.txt'
+        if not os.path.exists(os.path.join(self.autodumpdir, filename)):
+            print_out_str('!!! AutoParse could not find dump_info.txt!')
+            return
+
+        with open(os.path.join(self.autodumpdir, filename)) as f:
+            for line in f.readlines():
+                words = line.split()
+                if not words or words[-1] not in RAM_FILE_NAMES:
+                    continue
+                fname = words[-1]
+                start = int(words[1], 16)
+                size = int(words[2])
+                filesize = os.path.getsize(
+                    os.path.join(self.autodumpdir, fname))
+                if size != filesize:
+                    print_out_str(
+                        ("!!! Size of %s on disk (%d) doesn't match size " +
+                         "from dump_info.txt (%d). Skipping...")
+                        % (fname, filesize, size))
+                    continue
+                yield fname, start
 
 
 class RamDump():
@@ -441,6 +521,7 @@ class RamDump():
         self.thread_size = 8192
         self.qtf_path = options.qtf_path
         self.qtf = options.qtf
+        self.skip_qdss_bin = options.skip_qdss_bin
         self.dcc = False
         self.t32_host_system = options.t32_host_system or None
         self.ipc_log_test = options.ipc_test
@@ -466,11 +547,19 @@ class RamDump():
             self.ebi_start = self.ebi_files[0][1]
         if self.phys_offset is None:
             self.get_hw_id()
+
+        if self.kaslr_offset is None:
+            self.get_kaslr_offset()
+            if self.kaslr_offset is not None:
+                self.gdbmi.kaslr_offset = self.kaslr_offset
+
         if options.phys_offset is not None:
             print_out_str(
                 '[!!!] Phys offset was set to {0:x}'.format(\
                     options.phys_offset))
             self.phys_offset = options.phys_offset
+
+        self.wlan = options.wlan
         self.lookup_table = []
         self.config = []
         self.config_dict = {}
@@ -483,21 +572,48 @@ class RamDump():
             self.page_offset = options.page_offset
         self.setup_symbol_tables()
 
+        va_bits = 39
+        modules_vsize = 0x08000000
+        self.va_start = (0xffffffffffffffff << va_bits) \
+            & 0xffffffffffffffff
+        if self.address_of("kasan_init") is None:
+            self.kasan_shadow_size = 0
+        else:
+            self.kasan_shadow_size = 1 << (va_bits - 3)
+
+        self.kimage_vaddr = self.va_start + self.kasan_shadow_size + \
+            modules_vsize
+        if self.kaslr_offset is not None:
+            self.kimage_vaddr = self.kimage_vaddr + self.kaslr_offset
+        self.modules_end = self.page_offset
+        self.kimage_voffset = self.address_of("kimage_voffset")
+        if self.kimage_voffset is not None:
+            self.kimage_voffset = self.kimage_vaddr - self.phys_offset
+            self.modules_end = self.kimage_vaddr
+            print_out_str("The kimage_voffset extracted is: {:x}".format(self.kimage_voffset))
+
         # The address of swapper_pg_dir can be used to determine
         # whether or not we're running with LPAE enabled since an
         # extra 4k is needed for LPAE. If it's 0x5000 below
         # PAGE_OFFSET + TEXT_OFFSET then we know we're using LPAE. For
         # non-LPAE it should be 0x4000 below PAGE_OFFSET + TEXT_OFFSET
-        swapper_pg_dir = self.address_of('swapper_pg_dir')
-        if swapper_pg_dir is None:
+        self.swapper_pg_dir_addr = self.address_of('swapper_pg_dir')
+        if self.swapper_pg_dir_addr is None:
             print_out_str('!!! Could not get the swapper page directory!')
             print_out_str(
                 '!!! Your vmlinux is probably wrong for these dumps')
             print_out_str('!!! Exiting now')
             sys.exit(1)
-        self.swapper_pg_dir_addr =  swapper_pg_dir - self.page_offset
-        self.kernel_text_offset = self.address_of('stext') - self.page_offset
-        pg_dir_size = self.kernel_text_offset - self.swapper_pg_dir_addr
+
+        stext = self.address_of('stext')
+        if self.kimage_voffset is None:
+            self.kernel_text_offset = stext - self.page_offset
+        else:
+            self.kernel_text_offset = stext - self.kimage_vaddr
+
+        pg_dir_size = self.kernel_text_offset + self.page_offset \
+            - self.swapper_pg_dir_addr
+
         if self.arm64:
             print_out_str('Using 64bit MMU')
             self.mmu = Armv8MMU(self)
@@ -553,6 +669,7 @@ class RamDump():
             print_out_str(
                 '!!! This is really bad and probably indicates RAM corruption')
             print_out_str('!!! Some features may be disabled!')
+
         self.unwind = self.Unwinder(self)
 
     def __del__(self):
@@ -569,12 +686,25 @@ class RamDump():
         file_path = os.path.join(self.outdir, file_name)
         f = None
         try:
+            dir_path = os.path.dirname(file_path)
+            if not os.path.exists(dir_path) and 'w' in mode:
+                os.makedirs(dir_path)
             f = open(file_path, mode)
         except:
             print_out_str('Could not open path {0}'.format(file_path))
             print_out_str('Do you have write/read permissions on the path?')
             sys.exit(1)
         return f
+
+    def remove_file(self, file_name):
+	file_path = os.path.join(self.outdir, file_name)
+	try:
+	    if (os.path.exists(file_path)):
+		os.remove(file_path)
+	except:
+	    print_out_str('Could not remove file {0}'.format(file_path))
+	    print_out_str('Do you have write/read permissions on the path?')
+	    sys.exit(1)
 
     def get_config(self):
         kconfig_addr = self.address_of('kernel_config_data')
@@ -604,7 +734,9 @@ class RamDump():
         for l in t:
             self.config.append(l.rstrip().decode('ascii', 'ignore'))
             if not l.startswith('#') and l.strip() != '':
-                cfg, val = l.split('=')
+                eql = l.find('=')
+                cfg = l[:eql]
+                val = l[eql+1:]
                 self.config_dict[cfg] = val.strip()
         return True
 
@@ -622,11 +754,20 @@ class RamDump():
         s = config + '=y'
         return s in self.config
 
+    def kernel_virt_to_phys(self, addr):
+        va_bits = 39
+        if self.kimage_voffset is None:
+            return addr - self.page_offset + self.phys_offset
+        else:
+            if addr & (1 << (va_bits - 1)):
+                return addr - self.page_offset + self.phys_offset
+            else:
+                return addr - (self.kimage_voffset)
+
     def get_version(self):
         banner_addr = self.address_of('linux_banner')
         if banner_addr is not None:
-            # Don't try virt to phys yet, compute manually
-            banner_addr = banner_addr - self.page_offset + self.phys_offset
+            banner_addr = self.kernel_virt_to_phys(banner_addr)
             b = self.read_cstring(banner_addr, 256, False)
             if b is None:
                 print_out_str('!!! Could not read banner address!')
@@ -663,82 +804,41 @@ class RamDump():
             print_out_str('!!! Could not lookup saved command line address')
             return False
 
-    def get_ddr_base_addr(self, file_path):
-        if os.path.exists(os.path.join(file_path, 'load.cmm')):
-            with open (os.path.join(file_path, 'load.cmm'), "r") as myfile:
-                for line in myfile.readlines():
-                    words = line.split()
-                    if words[0] == "d.load.binary" and words[1].startswith("DDRCS"):
-                        if words[2][0:2].lower() == '0x':
-                            return int(words[2], 16)
-        elif os.path.exists(os.path.join(file_path, 'dump_info.txt')):
-            with open (os.path.join(file_path, 'dump_info.txt'), "r") as myfile:
-                for line in myfile.readlines():
-                    words = line.split()
-                    if words[-1].startswith("DDRCS"):
-                        if words[1][0:2].lower() == '0x':
-                            return int(words[1], 16)
+    def print_socinfo(self):
+        content_socinfo = hex(self.read_pointer('socinfo'))
+        content_socinfo = content_socinfo.strip('L')
+        sernum_offset = self.field_offset('struct socinfo_v10', 'serial_number')
+        if sernum_offset is None:
+            sernum_offset = self.field_offset('struct socinfo_v0_10', 'serial_number')
+            if sernum_offset is None:
+                print_out_str("No serial number information available")
+                return False
+        addr_of_sernum = hex(int(content_socinfo, 16) + sernum_offset)
+        addr_of_sernum = addr_of_sernum.strip('L')
+        serial_number = self.read_u32(int(addr_of_sernum, 16))
+        if serial_number is not None:
+            print_out_str('Serial number %s' % hex(serial_number))
+            return True
+        return False
 
     def auto_parse(self, file_path):
-        first_mem_path = None
-
-        for f in first_mem_file_names:
-            test_path = file_path + '/' + f
-            if os.path.exists(test_path):
-                first_mem_path = test_path
-                break
-
-        if first_mem_path is None:
-            print_out_str('!!! Could not open a memory file. I give up')
-            sys.exit(1)
-
-        first_mem = open(first_mem_path, 'rb')
-        # put some dummy data in for now
-        self.ebi_files = [(first_mem, 0, 0xffff0000, first_mem_path)]
-        if not self.get_hw_id(add_offset=False):
-            return False
-
-        base_addr = self.get_ddr_base_addr(file_path)
-        if base_addr is not None:
-            self.ebi_start = base_addr
-            self.phys_offset = base_addr
-        else:
-            print_out_str('!!! WARNING !!! Using Static DDR Base Addresses.')
-
-        first_mem_end = self.ebi_start + os.path.getsize(first_mem_path) - 1
-        self.ebi_files = [
-            (first_mem, self.ebi_start, first_mem_end, first_mem_path)]
-        print_out_str(
-            'Adding {0} {1:x}--{2:x}'.format(first_mem_path, self.ebi_start, first_mem_end))
-        self.ebi_start = self.ebi_start + os.path.getsize(first_mem_path)
-
-        for f in extra_mem_file_names:
-            extra_path = file_path + '/' + f
-
-            if os.path.exists(extra_path):
-                extra = open(extra_path, 'rb')
-                extra_start = self.ebi_start
-                extra_end = extra_start + os.path.getsize(extra_path) - 1
-                self.ebi_start = extra_end + 1
-                print_out_str(
-                    'Adding {0} {1:x}--{2:x}'.format(extra_path, extra_start, extra_end))
-                self.ebi_files.append(
-                    (extra, extra_start, extra_end, extra_path))
-
-        if self.imem_fname is not None:
-            imemc_path = file_path + '/' + self.imem_fname
-            if os.path.exists(imemc_path):
-                imemc = open(imemc_path, 'rb')
-                imemc_start = self.tz_start
-                imemc_end = imemc_start + os.path.getsize(imemc_path) - 1
-                print_out_str(
-                    'Adding {0} {1:x}--{2:x}'.format(imemc_path, imemc_start, imemc_end))
-                self.ebi_files.append(
-                    (imemc, imemc_start, imemc_end, imemc_path))
-        return True
+        for cls in sorted(AutoDumpInfo.__subclasses__(),
+                          key=lambda x: x.priority, reverse=True):
+            info = cls(file_path)
+            info.parse()
+            if info is not None and len(info.ebi_files) > 0:
+                self.ebi_files = info.ebi_files
+                self.phys_offset = self.ebi_files[0][1]
+                if self.get_hw_id():
+                    for (f, start, end, filename) in self.ebi_files:
+                        print_out_str('Adding {0} {1:x}--{2:x}'.format(
+                            filename, start, end))
+                    return True
+        self.ebi_files = None
+        return False
 
     def create_t32_launcher(self):
-        out_path = self.outdir
+        out_path = os.path.abspath(self.outdir)
 
         t32_host_system = self.t32_host_system or platform.system()
 
@@ -757,10 +857,14 @@ class RamDump():
         launch_config.write('PBI=SIM\n')
         launch_config.write('\n')
         launch_config.write('SCREEN=\n')
-        launch_config.write('FONT=SMALL\n')
+        if t32_host_system != 'Linux':
+            launch_config.write('FONT=SMALL\n')
+        else:
+            launch_config.write('FONT=LARGE\n')
         launch_config.write('HEADER=Trace32-ScorpionSimulator\n')
         launch_config.write('\n')
-        launch_config.write('PRINTER=WINDOWS\n')
+        if t32_host_system != 'Linux':
+            launch_config.write('PRINTER=WINDOWS\n')
         launch_config.write('\n')
         launch_config.write('RCL=NETASSIST\n')
         launch_config.write('PACKLEN=1024\n')
@@ -773,7 +877,7 @@ class RamDump():
 
         startup_script.write(('title \"' + out_path + '\"\n').encode('ascii', 'ignore'))
 
-        is_cortex_a53 = self.hw_id == 8916 or self.hw_id == 8939 or self.hw_id == 8936
+        is_cortex_a53 = self.hw_id in ["8916", "8939", "8936"]
 
         if self.arm64 and is_cortex_a53:
             startup_script.write('sys.cpu CORTEXA53\n'.encode('ascii', 'ignore'))
@@ -787,7 +891,9 @@ class RamDump():
                 ebi_path, ram[1]).encode('ascii', 'ignore'))
         if self.arm64:
             startup_script.write('Register.Set NS 1\n'.encode('ascii', 'ignore'))
-            startup_script.write('Data.Set SPR:0x30201 %Quad 0x{0:x}\n'.format(self.swapper_pg_dir_addr + self.phys_offset).encode('ascii', 'ignore'))
+            startup_script.write('Data.Set SPR:0x30201 %Quad 0x{0:x}\n'.format(
+                self.kernel_virt_to_phys(self.swapper_pg_dir_addr))
+                .encode('ascii', 'ignore'))
 
             if is_cortex_a53:
                 startup_script.write('Data.Set SPR:0x30202 %Quad 0x00000012B5193519\n'.encode('ascii', 'ignore'))
@@ -860,7 +966,8 @@ class RamDump():
         startup_script.close()
 
         if t32_host_system != 'Linux':
-            t32_bat = open(out_path + '/launch_t32.bat', 'wb')
+            launch_file = os.path.join(out_path, 'launch_t32.bat')
+            t32_bat = open(launch_file, 'wb')
             if self.arm64:
                 t32_binary = 'C:\\T32\\bin\\windows64\\t32MARM64.exe'
             elif is_cortex_a53:
@@ -869,22 +976,23 @@ class RamDump():
                 t32_binary = 'c:\\t32\\t32MARM.exe'
             t32_bat.write(('start '+ t32_binary + ' -c ' + out_path + '/t32_config.t32, ' +
                           out_path + '/t32_startup_script.cmm').encode('ascii', 'ignore'))
+            t32_bat.close()
         else:
-            t32_bat = open(out_path + '/launch_t32.sh', 'wb')
+            launch_file = os.path.join(out_path, 'launch_t32.sh')
+            t32_sh = open(launch_file, 'wb')
             if self.arm64:
                 t32_binary = '/opt/t32/bin/pc_linux64/t32marm64-qt'
             elif is_cortex_a53:
                 t32_binary = '/opt/t32/bin/pc_linux64/t32marm-qt'
             else:
                 t32_binary = '/opt/t32/bin/pc_linux64/t32marm-qt'
-            t32_bat.write('#!/bin/sh\n\n')
-            t32_bat.write('cd $(dirname $0)\n')
-            t32_bat.write('{} -c t32_config.t32, t32_startup_script.cmm &\n'.format(t32_binary))
-            os.chmod(out_path + '/launch_t32.sh', stat.S_IRWXU)
+            t32_sh.write('#!/bin/sh\n\n')
+            t32_sh.write('{0} -c {1}/t32_config.t32, {1}/t32_startup_script.cmm &\n'.format(t32_binary, out_path))
+            t32_sh.close()
+            os.chmod(launch_file, stat.S_IRWXU)
 
-        t32_bat.close()
         print_out_str(
-            '--- Created a T32 Simulator launcher (run {0}/launch_t32.bat)'.format(out_path))
+            '--- Created a T32 Simulator launcher (run {})'.format(launch_file))
 
     def read_tz_offset(self):
         if self.tz_addr == 0:
@@ -893,6 +1001,18 @@ class RamDump():
             return None
         else:
             return self.read_word(self.tz_addr, False)
+
+    def get_kaslr_offset(self):
+        if(self.kaslr_addr is None):
+            print_out_str('!!!! Kaslr addr is not provided.')
+        else:
+            kaslr_magic = self.read_u32(self.kaslr_addr, False)
+            if kaslr_magic != 0xdead4ead:
+                print_out_str('!!!! Kaslr magic does not match.')
+                self.kaslr_offset = None
+            else:
+                self.kaslr_offset = self.read_u64(self.kaslr_addr + 4, False)
+                print_out_str("The kaslr_offset extracted is: " + str(hex(self.kaslr_offset)))
 
     def get_hw_id(self, add_offset=True):
         socinfo_format = -1
@@ -972,13 +1092,18 @@ class RamDump():
         if board.wdog_addr is not None:
             print_out_str(
             'TZ address: {0:x}'.format(board.wdog_addr))
-        self.phys_offset = board.phys_offset
+        if self.phys_offset is None:
+            self.phys_offset = board.phys_offset
         self.tz_addr = board.wdog_addr
         self.ebi_start = board.ram_start
         self.tz_start = board.imem_start
         self.hw_id = board.board_num
         self.cpu_type = board.cpu
         self.imem_fname = board.imem_file_name
+        if hasattr(board, 'kaslr_addr'):
+            self.kaslr_addr = board.kaslr_addr
+        else:
+            self.kaslr_addr = None
         return True
 
     def resolve_virt(self, virt_or_name):
@@ -1092,7 +1217,7 @@ class RamDump():
 
         # modules are not supported so just print out an address
         # instead of a confusing symbol
-        if (addr < self.page_offset):
+        if (addr < self.modules_end):
             return ('(No symbol for address {0:x})'.format(addr), 0x0)
 
         low = 0
@@ -1167,6 +1292,11 @@ class RamDump():
         s = self.read_string(addr_or_name, '<?', virtual, cpu)
         return s[0] if s is not None else None
 
+    def read_s64(self, addr_or_name, virtual=True, cpu=None):
+        """returns a value guaranteed to be 64 bits"""
+        s = self.read_string(addr_or_name, '<q', virtual, cpu)
+        return s[0] if s is not None else None
+
     def read_u64(self, addr_or_name, virtual=True, cpu=None):
         """returns a value guaranteed to be 64 bits"""
         s = self.read_string(addr_or_name, '<Q', virtual, cpu)
@@ -1205,6 +1335,9 @@ class RamDump():
         """reads a 4 or 8 byte field from a structure"""
         size = self.sizeof("(({0} *)0)->{1}".format(struct_name, field))
         virt = self.resolve_virt(addr_or_name)
+        if virt is None or size is None:
+            return None
+
         if size == 4:
             return self.read_u32(virt + self.field_offset(struct_name,
                                                                   field))
@@ -1302,8 +1435,14 @@ class RamDump():
 
     def get_num_cpus(self):
         """Gets the number of CPUs in the system."""
+        major, minor, patch = self.kernel_version
         cpu_present_bits_addr = self.address_of('cpu_present_bits')
         cpu_present_bits = self.read_word(cpu_present_bits_addr)
+
+        if (major, minor) >= (4, 5):
+            cpu_present_bits_addr = self.address_of('__cpu_present_mask')
+            bits_offset = self.field_offset('struct cpumask', 'bits')
+            cpu_present_bits = self.read_word(cpu_present_bits_addr + bits_offset)
         return bin(cpu_present_bits).count('1')
 
     def iter_cpus(self):
@@ -1345,3 +1484,165 @@ class RamDump():
             return self.thread_saved_field_common_64(task, self.field_offset('struct cpu_context', 'fp'))
         else:
             return self.thread_saved_field_common_32(task, self.field_offset('struct cpu_context_save', 'fp'))
+
+
+class Struct(object):
+    """
+    Helper class to abstract C structs retrieval by providing a map of fields
+    to functions on how to retrieve these
+
+    Given C struct::
+
+        struct my_struct {
+            char label[MAX_STR_SIZE];
+            u32 number;
+            void *address;
+        }
+
+    You can abstract as:
+
+    >>> var = Struct(ramdump, var_name, struct_name="struct my_struct",
+                                        fields={'label': Struct.get_cstring,
+                                                'number': Struct.get_u32,
+                                                'address': Struct.get_pointer})
+    >>> var.label
+    'label string'
+    >>> var.number
+    1234
+    """
+    _struct_name = None
+    _fields = None
+
+    def __init__(self, ramdump, base, struct_name=None, fields=None):
+        """
+        :param ram_dump:    Reference to the ram dump
+        :param base:        The virtual address or variable name of struct
+        :param struct_name: Name of the structure, should start with 'struct'.
+                            Ex: 'struct my_struct'
+        :param fields:  Dictionary with key being the element name and value
+                        being a function pointer to method used to retrieve it.
+        """
+        self.ramdump = ramdump
+        self._base = self.ramdump.resolve_virt(base)
+        self._data = {}
+        if struct_name:
+            self._struct_name = struct_name
+        if fields:
+            self._fields = fields
+
+    def is_empty(self):
+        """
+        :return: true if struct is empty
+        """
+        return self._base == 0 or self._base is None or self._fields is None
+
+    def get_address(self, key):
+        """
+        :param key: struct field name
+        :return: returns address of the named field within the struct
+        """
+        return self._base + self.ramdump.field_offset(self._struct_name, key)
+
+    def get_pointer(self, key):
+        """
+        :param key: struct field name
+        :return: returns the addressed pointed by field within the struct
+
+        example struct::
+
+            struct {
+                void *key;
+            };
+        """
+        address = self.get_address(key)
+        return self.ramdump.read_pointer(address)
+
+    def get_struct_sizeof(self, key):
+        """
+        :param key: struct field name
+        :return: returns the size of a field within struct
+
+        Given C struct::
+
+            struct my_struct {
+                char key1[10];
+                u32 key2;
+            };
+
+        You could do:
+
+        >>> struct = Struct(ramdump, 0, struct="struct my_struct",
+                                        fields={"key1": Struct.get_cstring,
+                                                "key2": Struct.get_u32})
+        >>> struct.get_struct_sizeof(key1)
+        10
+        >>> struct.get_struct_sizeof(key2)
+        4
+        """
+        return self.ramdump.sizeof('((%s *) 0)->%s' % (self._struct_name, key))
+
+    def get_cstring(self, key):
+        """
+        :param key: struct field name
+        :return: returns a string that is contained within struct memory
+
+        Example C struct::
+
+            struct {
+                char key[10];
+            };
+        """
+        address = self.get_address(key)
+        length = self.get_struct_sizeof(key)
+        return self.ramdump.read_cstring(address, length)
+
+    def get_u32(self, key):
+        """
+        :param key: struct field name
+        :return: returns a u32 integer within the struct
+
+        Example C struct::
+
+            struct {
+                u32 key;
+            };
+        """
+        address = self.get_address(key)
+        return self.ramdump.read_u32(address)
+
+    def get_array_ptrs(self, key):
+        """
+        :param key: struct field name
+        :return: returns an array of pointers
+
+        Example C struct::
+
+            struct {
+                void *key[4];
+            };
+        """
+        ptr_size = self.ramdump.sizeof('void *')
+        length = self.get_struct_sizeof(key) / ptr_size
+        address = self.get_address(key)
+        arr = []
+        for i in range(0, length - 1):
+            ptr = self.ramdump.read_pointer(address + (ptr_size * i))
+            arr.append(ptr)
+        return arr
+
+    def __setattr__(self, key, value):
+        if self._fields and key in self._fields:
+            raise ValueError(key + "is read-only")
+        else:
+            super(Struct, self).__setattr__(key, value)
+
+    def __getattr__(self, key):
+        if not self.is_empty():
+            if key in self._data:
+                return self._data[key]
+            elif key in self._fields:
+                fn = self._fields[key]
+                value = fn(self, key)
+                self._data[key] = value
+                return value
+        return None

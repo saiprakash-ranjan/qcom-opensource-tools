@@ -1,4 +1,4 @@
-# Copyright (c) 2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -117,10 +117,17 @@ class lpm(RamParser):
         offset = self.ramdump.field_offset('struct lpm_cluster', 'child_cpus')
         node = self.ramdump.read_int(lpm_cluster + offset)
         self.output.append("{:20}:{}({})\n".format("child_cpus", hex(node).rstrip("L"), bin(node).lstrip("0b")))
-
-        offset = self.ramdump.field_offset('struct lpm_cluster', 'num_childs_in_sync')
+        if (self.ramdump.kernel_version >= (3, 18, 0) or
+            self.ramdump.kernel_version < (3, 14, 0) ):
+                offset = self.ramdump.field_offset(
+                        'struct lpm_cluster', 'num_children_in_sync')
+        else:
+                offset = self.ramdump.field_offset(
+                        'struct lpm_cluster', 'num_childs_in_sync')
         node = self.ramdump.read_int(lpm_cluster + offset)
-        self.output.append("{:20}:{}({})\n".format("num_childs_in_sync", hex(node).rstrip("L"), bin(node).lstrip("0b")))
+        self.output.append("{:20}:{}({})\n".format(
+                "num_children_in_sync", hex(node).rstrip("L"),
+                    bin(node).lstrip("0b")))
         self.output.append("\n")
 
     def lpm_walker(self, lpm_cluster):

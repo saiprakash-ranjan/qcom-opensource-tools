@@ -1,4 +1,4 @@
-# Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -19,10 +19,26 @@ def page_buddy(ramdump, page):
     return val == 0xffffff80
 
 
+def page_count(ramdump, page):
+    """Commit: 0139aa7b7fa12ceef095d99dc36606a5b10ab83a
+    mm: rename _count, field of the struct page, to _refcount"""
+    if (ramdump.version < (4, 6, 0)):
+        count = ramdump.read_structure_field(page, 'struct page',
+                                             '_count.counter')
+    else:
+        count = ramdump.read_structure_field(page, 'struct page',
+                                             '_refcount.counter')
+    return count
+
+
+def page_ref_count(ramdump, page):
+    return page_count(ramdump, page)
+
 def get_debug_flags(ramdump, page):
     debug_flag_offset = ramdump.field_offset('struct page', 'debug_flags')
     flagval = ramdump.read_word(page + debug_flag_offset)
     return flagval
+
 
 def page_zonenum(page_flags):
     # save this in a variable somewhere...
@@ -134,7 +150,12 @@ def get_vmemmap(ramdump):
     # See: include/asm-generic/pgtable-nopud.h,
     # arch/arm64/include/asm/pgtable-hwdef.h,
     # arch/arm64/include/asm/pgtable.h
-    nlevels = int(ramdump.get_config_val("CONFIG_ARM64_PGTABLE_LEVELS"))
+    # kernel/arch/arm64/include/asm/memory.h
+    if (ramdump.kernel_version < (3, 18, 0)):
+        nlevels = int(ramdump.get_config_val("CONFIG_ARM64_PGTABLE_LEVELS"))
+    else:
+        nlevels = int(ramdump.get_config_val("CONFIG_PGTABLE_LEVELS"))
+
     if ramdump.is_config_defined("CONFIG_ARM64_64K_PAGES"):
         page_shift = 16
     else:
@@ -146,8 +167,27 @@ def get_vmemmap(ramdump):
     spsize = ramdump.sizeof('struct page')
     vmemmap_size = bitops.align((1 << (va_bits - page_shift)) * spsize,
                                 pud_size)
-    vmalloc_end = ramdump.page_offset - pud_size - vmemmap_size
-    return vmalloc_end
+
+    memstart_addr = ramdump.read_s64('memstart_addr')
+    page_section_mask = ~((1 << 18) - 1)
+    memstart_offset = (memstart_addr >> page_shift) & page_section_mask
+    memstart_offset *= spsize
+
+    if (ramdump.kernel_version < (3, 18, 31)):
+        # vmalloc_end = 0xFFFFFFBC00000000
+        vmemmap = ramdump.page_offset - pud_size - vmemmap_size
+    elif (ramdump.kernel_version < (4, 9, 0)):
+        # for version >= 3.18.31,
+        # vmemmap is shifted to base addr (0x80000000) pfn.
+        vmemmap = (ramdump.page_offset - pud_size - vmemmap_size -
+                   memstart_offset)
+    else:
+        # for version >= 4.9.0,
+        # vmemmap_size = ( 1 << (39 - 12 - 1 + 6))
+        struct_page_max_shift = 6
+        vmemmap_size = ( 1 << (va_bits - page_shift - 1 + struct_page_max_shift))
+        vmemmap = ramdump.page_offset - vmemmap_size - memstart_offset
+    return vmemmap
 
 
 def page_to_pfn_vmemmap(ramdump, page):
@@ -231,7 +271,8 @@ def dont_map_hole_lowmem_page_address(ramdump, page):
 
 def normal_lowmem_page_address(ramdump, page):
     phys = page_to_pfn(ramdump, page) << 12
-    return phys - ramdump.phys_offset + ramdump.page_offset
+    memstart_addr = ramdump.read_s64('memstart_addr')
+    return phys - memstart_addr + ramdump.page_offset
 
 
 def lowmem_page_address(ramdump, page):
@@ -264,3 +305,30 @@ def page_address(ramdump, page):
         pam = ramdump.read_word(pam + lh_offset)
         if pam == start:
             return None
+
+
+def for_each_pfn(ramdump):
+    """ creates a generator for looping through valid pfn
+    Example:
+    for i in for_each_pfn(ramdump):
+        page = pfn_to_page(i)
+    """
+    page_size = (1 << 12)
+    cnt = ramdump.read_structure_field('memblock', 'struct memblock',
+                                       'memory.cnt')
+    region = ramdump.read_structure_field('memblock', 'struct memblock',
+                                          'memory.regions')
+    memblock_region_size = ramdump.sizeof('struct memblock_region')
+    for i in range(cnt):
+        start = ramdump.read_structure_field(region, 'struct memblock_region',
+                                             'base')
+        end = start + ramdump.read_structure_field(
+                            region, 'struct memblock_region', 'size')
+
+        pfn = start / page_size
+        end /= page_size
+        while pfn < end:
+            yield pfn
+            pfn += 1
+
+        region += memblock_region_size
