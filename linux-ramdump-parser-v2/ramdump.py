@@ -549,6 +549,7 @@ class RamDump():
             except ImportError:
                 print "Oops, missing required library for minidump. Check README"
                 sys.exit(1)
+        self.ram_addr = options.ram_addr
 
         if options.ram_addr is not None:
             # TODO sanity check to make sure the memory regions don't overlap

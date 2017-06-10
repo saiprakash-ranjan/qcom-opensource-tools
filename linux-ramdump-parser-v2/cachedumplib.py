@@ -806,3 +806,13 @@ lookuptable[("8953", 0x84, 0x14)] = L1_DCache_A53()
 lookuptable[("8953", 0x85, 0x14)] = L1_DCache_A53()
 lookuptable[("8953", 0x86, 0x14)] = L1_DCache_A53()
 lookuptable[("8953", 0x87, 0x14)] = L1_DCache_A53()
+
+# sdm450
+lookuptable[("450", 0x80, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x81, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x82, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x83, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x87, 0x14)] = L1_DCache_A53()
