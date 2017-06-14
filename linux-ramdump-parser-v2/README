@@ -72,6 +72,11 @@ specify the paths to these tools. This can be done in three ways
 1) Using --gdb-path and --nm-path to specify the absolute path
 2) Using CROSS_COMPILE to specify the prefix
 3) Using local_settings.py as described below
+4) Install this library from https://github.com/eliben/pyelftools
+    - Download the code from avobe github link. Download the zip file.
+    - After download the zip file, you will find a folder pyelftools-master.
+    - Inside this folder you will find another folder named "elftools"
+	- copy that entire folder and paste it in below directory <installed Python path>\Lib\site-packages
 
 Just having gdb/nm on the path is not supported as there are too many
 variations on names to invoke.
@@ -91,6 +96,14 @@ nm_path - absolute path to the gdb tool for the ramdumps
 gdb64_path - absolute path to the 64-bit gdb tool for the ramdumps
 nm64_path - absolute path to the 64-bit nm tool for the ramdumps
 qtf_path - absolute path to qtf tool executable
+scandump_parser_path - absolute path to scandump parser for the ramdumps
+crashtool - absolute path to the 'crash' tool that is able to provide
+	    gdb like debugging and also host an extension that extracts
+	    ftrace
+trace_ext - shared library extension that allows the 'crash' tool to read
+	    raw ftrace data from a ramdump and dump it into a binary format
+tracecmdtool - absolute path to the trace-cmd tool that converts the binary
+	       trace format created by trace_ext to human readable ftrace
 
 Note that local_settings.py is just a python file so the file may take advantage
 of python features.
