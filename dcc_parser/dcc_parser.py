@@ -79,6 +79,7 @@ def read_config(config_pt):
         link_second_arg = 8
         # We return zero and fail
         on_zero_link_len = 0
+        track_len = 0
     else:
         address_descriptor = 0
         link_descriptor = 0x3 << 30
@@ -88,6 +89,8 @@ def read_config(config_pt):
         link_second_arg = 7
         #indicates end of list
         on_zero_link_len = -1
+        #word size
+        track_len = 4
 
     while True:
         word = config_pt.read(4)
@@ -107,9 +110,10 @@ def read_config(config_pt):
         elif descriptor == address_descriptor:
             base = ((val & 0x0FFFFFFF) << 4)
             offset = 0
+            length = 1
         elif descriptor == link_descriptor:
             for i in range(0, 2):
-                offset = offset + (val & 0xFF) * 4
+                offset = offset + (val & 0xFF) * 4 + (length - 1) * track_len
                 val = val >> 8
 
                 length = (val & 0x7f)
