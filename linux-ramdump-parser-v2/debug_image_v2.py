@@ -31,7 +31,7 @@ from tlbdumplib import lookup_tlb_type
 from vsens import VsensData
 
 MEMDUMPV2_MAGIC = 0x42445953
-MAX_NUM_ENTRIES = 0x140
+MAX_NUM_ENTRIES = 0x150
 TRACE_EVENT_FL_TRACEPOINT = 0x40
 
 class client(object):
@@ -52,9 +52,9 @@ class client(object):
     MSM_DUMP_DATA_LOG_BUF = 0x110
     MSM_DUMP_DATA_LOG_BUF_FIRST_IDX = 0x111
     MSM_DUMP_DATA_L2_TLB = 0x120
-    MSM_DUMP_DATA_LLC_CACHE = 0x121
     MSM_DUMP_DATA_SCANDUMP = 0xEB
     MSM_DUMP_DATA_SCANDUMP_PER_CPU = 0x130
+    MSM_DUMP_DATA_LLC_CACHE = 0x140
     MSM_DUMP_DATA_MAX = MAX_NUM_ENTRIES
 
 # Client functions will be executed in top-to-bottom order
