@@ -1,4 +1,4 @@
-# Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -51,16 +51,21 @@ class MMU(object):
         if addr is None:
             return None
 
-        if not skip_tlb:
-            if addr in self._tlb:
-                return self._tlb[addr]
+        page_addr = (addr >> 12) << 12
+        page_offset = addr & 0xFFF
 
-        phys_addr = self.page_table_walk(addr)
+        if not skip_tlb:
+            if page_addr in self._tlb:
+                return self._tlb[page_addr] + page_offset
+
+        phys_addr = self.page_table_walk(page_addr)
+        if phys_addr is None:
+            return None
 
         if save_in_tlb:
-            self._tlb[addr] = phys_addr
+            self._tlb[page_addr] = phys_addr
 
-        return phys_addr
+        return phys_addr + page_offset
 
     def load_page_tables(self):
         raise NotImplementedError
@@ -81,7 +86,8 @@ class Armv7MMU(MMU):
         self.secondary_page_tables = [
             [0 for col in range(256)] for row in range(4096)]
 
-        msm_ttbr0 = self.ramdump.phys_offset + self.ramdump.swapper_pg_dir_addr
+        msm_ttbr0 = self.ramdump.kernel_virt_to_phys(
+            self.ramdump.swapper_pg_dir_addr)
         self.ttbr = msm_ttbr0
         virt_address = 0x0
         gb_i = 0
@@ -392,7 +398,8 @@ class Armv7LPAEMMU(MMU):
         pass
 
     def page_table_walk(self, virt):
-        self.ttbr = self.ramdump.swapper_pg_dir_addr + self.ramdump.phys_offset
+        self.ttbr = self.ramdump.kernel_virt_to_phys(
+            self.ramdump.swapper_pg_dir_addr)
         info = self.translate(virt)
         return info.phys if info is not None else None
 
@@ -504,7 +511,7 @@ class Armv8MMU(MMU):
         else:
             raise Exception(
                 'Invalid stage 1 first- or second-level translation\ndescriptor: (%s)\naddr: (%s)'
-                % (str(descriptor), str(addr))
+               % (str(descriptor), str(addr))
             )
         return descriptor
 
@@ -577,7 +584,8 @@ class Armv8MMU(MMU):
 
     def page_table_walk(self, virt):
 
-        self.ttbr = self.ramdump.swapper_pg_dir_addr + self.ramdump.phys_offset
+        self.ttbr = self.ramdump.kernel_virt_to_phys(
+            self.ramdump.swapper_pg_dir_addr)
 
         virt_r = Register(virt,
             zl_index=(47,39),
@@ -586,7 +594,10 @@ class Armv8MMU(MMU):
             tl_index=(20,12),
             page_index=(11,0))
 
-        fl_desc = self.do_fl_sl_level_lookup(self.ttbr, virt_r.fl_index, 12, 30)
+        try:
+          fl_desc = self.do_fl_sl_level_lookup(self.ttbr, virt_r.fl_index, 12, 30)
+        except:
+          return None
 
         if fl_desc.dtype == Armv8MMU.DESCRIPTOR_BLOCK:
             return self.fl_block_desc_2_phys(fl_desc, virt_r)
