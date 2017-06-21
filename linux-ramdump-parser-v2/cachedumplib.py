@@ -650,10 +650,10 @@ lookuptable[("sdm845", 0x66, 0x14)] = L1_ICache_KRYO3XX_GOLD()
 lookuptable[("sdm845", 0x67, 0x14)] = L1_ICache_KRYO3XX_GOLD()
 
 
-lookuptable[("sdm845", 0x121, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
-lookuptable[("sdm845", 0x122, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
-lookuptable[("sdm845", 0x123, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
-lookuptable[("sdm845", 0x124, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x140, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x141, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x142, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x143, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
 
 # "sdm660"
 lookuptable[("660", 0x80, 0x14)] = L1_DCache_KRYO2XX_SILVER()
