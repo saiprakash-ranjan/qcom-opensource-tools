@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -76,13 +76,24 @@ class IommuLib(object):
 
         arm_smmu_ops = self.ramdump.address_of('arm_smmu_ops')
 
-        dev_ptr = self.ramdump.read_structure_field(
-            node, 'struct iommu_debug_attachment', 'dev')
-
-        kobj_ptr = dev_ptr + self.ramdump.field_offset('struct device', 'kobj')
-
-        client_name = self.ramdump.read_structure_cstring(
-            kobj_ptr, 'struct kobject', 'name')
+        ptr = self.ramdump.read_structure_field(
+            node, 'struct iommu_debug_attachment', 'group')
+        if ptr is not None:
+            dev_list = ptr + self.ramdump.field_offset(
+                'struct iommu_group', 'devices')
+            dev = self.ramdump.read_structure_field(
+                dev_list, 'struct list_head', 'next')
+            client_name = self.ramdump.read_structure_cstring(
+                dev, 'struct iommu_device', 'name')
+        else:
+            """Older kernel versions have the field 'dev'
+           instead of 'iommu_group'.
+            """
+            ptr = self.ramdump.read_structure_field(
+                node, 'struct iommu_debug_attachment', 'dev')
+            kobj_ptr = ptr + self.ramdump.field_offset('struct device', 'kobj')
+            client_name = self.ramdump.read_structure_cstring(
+                kobj_ptr, 'struct kobject', 'name')
 
         iommu_domain_ops = self.ramdump.read_structure_field(
             domain_ptr, 'struct iommu_domain', 'ops')
