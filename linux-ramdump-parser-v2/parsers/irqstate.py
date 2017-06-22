@@ -25,6 +25,7 @@ class IrqParse(RamParser):
         foo, irq_desc_size = ram_dump.unwind_lookup(irq_desc, 1)
         h_irq_offset = ram_dump.field_offset('struct irq_desc', 'handle_irq')
         irq_num_offset = ram_dump.field_offset('struct irq_data', 'irq')
+        hwirq_num_offset = ram_dump.field_offset('struct irq_data', 'hwirq')
         irq_data_offset = ram_dump.field_offset('struct irq_desc', 'irq_data')
         irq_count_offset = ram_dump.field_offset(
             'struct irq_desc', 'irq_count')
@@ -40,10 +41,11 @@ class IrqParse(RamParser):
         for i in range(0, cpus):
             cpu_str = cpu_str + '{0:10} '.format('CPU{0}'.format(i))
 
-        print_out_str(
-            '{0:4} {1} {2:30} {3:10}'.format('IRQ', cpu_str, 'Name', 'Chip'))
+        print_out_str('{0:4} {1:10}\t {2} {3:30} {4:10}'
+                    .format('IRQ', 'HWIRQ', cpu_str, 'Name', 'Chip'))
         for i in range(0, irq_desc_size, irq_desc_entry_size):
             irqnum = ram_dump.read_word(irq_desc + i + irq_num_offset)
+            hwirq = ram_dump.read_word(irq_desc + i + hwirq_num_offset)
             irqcount = ram_dump.read_word(irq_desc + i + irq_count_offset)
             action = ram_dump.read_word(irq_desc + i + irq_action_offset)
             kstat_irqs_addr = ram_dump.read_word(
@@ -67,8 +69,10 @@ class IrqParse(RamParser):
             if action != 0:
                 name_addr = ram_dump.read_word(action + action_name_offset)
                 name = ram_dump.read_cstring(name_addr, 48)
+                str = '{0:4} {1:10}\t {2} {3:30} {4:10}'
                 print_out_str(
-                    '{0:4} {1} {2:30} {3:10}'.format(irqnum, irq_stats_str, name, chip_name))
+                    str.format(irqnum, hex(hwirq), irq_stats_str, name, 
+                        chip_name))
 
     def shift_to_maxindex(self, shift):
         radix_tree_map_shift = 6
@@ -161,6 +165,7 @@ class IrqParse(RamParser):
     def print_irq_state_sparse_irq(self, ram_dump):
         h_irq_offset = ram_dump.field_offset('struct irq_desc', 'handle_irq')
         irq_num_offset = ram_dump.field_offset('struct irq_data', 'irq')
+        hwirq_num_offset = ram_dump.field_offset('struct irq_data', 'hwirq')
         irq_data_offset = ram_dump.field_offset('struct irq_desc', 'irq_data')
         irq_count_offset = ram_dump.field_offset(
             'struct irq_desc', 'irq_count')
@@ -178,8 +183,8 @@ class IrqParse(RamParser):
         for i in ram_dump.iter_cpus():
             cpu_str = cpu_str + '{0:10} '.format('CPU{0}'.format(i))
 
-        print_out_str(
-            '{0:4} {1} {2:30} {3:15} {4:20}'.format('IRQ', cpu_str, 'Name', 'Chip', 'IRQ Structure'))
+        print_out_str('{0:4} {1:10}\t {2} {3:30} {4:15} {5:20}'\
+            .format('IRQ', 'HWIRQ', cpu_str, 'Name', 'Chip', 'IRQ Structure'))
 
         if nr_irqs > 50000:
             return
@@ -198,6 +203,8 @@ class IrqParse(RamParser):
                 continue
 
             irqnum = ram_dump.read_int(irq_desc + irq_data_offset + irq_num_offset)
+            hwirq = ram_dump.read_int(
+                irq_desc + irq_data_offset + hwirq_num_offset)
             irqcount = ram_dump.read_int(irq_desc + irq_count_offset)
             action = ram_dump.read_word(irq_desc + irq_action_offset)
             kstat_irqs_addr = ram_dump.read_word(irq_desc + kstat_irqs_offset)
@@ -219,8 +226,11 @@ class IrqParse(RamParser):
             if action != 0:
                 name_addr = ram_dump.read_word(action + action_name_offset)
                 name = ram_dump.read_cstring(name_addr, 48)
+                str = "{0:4} {1:10}\t {2} {3:30} {4:15} " \
+                       "v.v (struct irq_desc *)0x{5:<20x}"
                 print_out_str(
-                    '{0:4} {1} {2:30} {3:15} v.v (struct irq_desc *)0x{4:<20x}'.format(irqnum, irq_stats_str, name, chip_name, irq_desc))
+                    str.format(irqnum, hex(hwirq), irq_stats_str, name, 
+                            chip_name, irq_desc))
 
     def parse(self):
         irq_desc = self.ramdump.address_of('irq_desc')
