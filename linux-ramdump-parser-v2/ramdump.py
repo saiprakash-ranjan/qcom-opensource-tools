@@ -528,6 +528,7 @@ class RamDump():
         self.qtf = options.qtf
         self.skip_qdss_bin = options.skip_qdss_bin
         self.dcc = False
+        self.sysreg = False
         self.t32_host_system = options.t32_host_system or None
         self.ipc_log_test = options.ipc_test
         self.ipc_log_skip = options.ipc_skip

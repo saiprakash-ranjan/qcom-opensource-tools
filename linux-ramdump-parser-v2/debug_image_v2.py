@@ -29,9 +29,10 @@ from watchdog_v2 import TZRegDump_v2
 from cachedumplib import lookup_cache_type
 from tlbdumplib import lookup_tlb_type
 from vsens import VsensData
+from sysregs import SysRegDump
 
 MEMDUMPV2_MAGIC = 0x42445953
-MAX_NUM_ENTRIES = 0x140
+MAX_NUM_ENTRIES = 0x150
 TRACE_EVENT_FL_TRACEPOINT = 0x40
 
 class client(object):
@@ -45,6 +46,7 @@ class client(object):
     MSM_DUMP_DATA_L3_CACHE = 0xD0
     MSM_DUMP_DATA_OCMEM = 0xE0
     MSM_DUMP_DATA_DBGUI_REG = 0xE5
+    MSM_DUMP_DATA_MISC = 0xE8
     MSM_DUMP_DATA_VSENSE = 0xE9
     MSM_DUMP_DATA_TMC_ETF = 0xF0
     MSM_DUMP_DATA_TMC_REG = 0x100
@@ -52,9 +54,9 @@ class client(object):
     MSM_DUMP_DATA_LOG_BUF = 0x110
     MSM_DUMP_DATA_LOG_BUF_FIRST_IDX = 0x111
     MSM_DUMP_DATA_L2_TLB = 0x120
-    MSM_DUMP_DATA_LLC_CACHE = 0x121
     MSM_DUMP_DATA_SCANDUMP = 0xEB
     MSM_DUMP_DATA_SCANDUMP_PER_CPU = 0x130
+    MSM_DUMP_DATA_LLC_CACHE = 0x140
     MSM_DUMP_DATA_MAX = MAX_NUM_ENTRIES
 
 # Client functions will be executed in top-to-bottom order
@@ -78,6 +80,7 @@ client_types = [
     ('MSM_DUMP_DATA_TMC_REG', 'parse_qdss_common'),
     ('MSM_DUMP_DATA_L2_TLB', 'parse_l2_tlb'),
     ('MSM_DUMP_DATA_LLC_CACHE', 'parse_system_cache_common'),
+    ('MSM_DUMP_DATA_MISC', 'parse_sysdbg_regs'),
 ]
 
 qdss_tag_to_field_name = {
@@ -101,7 +104,8 @@ minidump_dump_table_type = [
     ('MSM_DUMP_DATA_DCC_REG', 'KDCC_REG'),
     ('MSM_DUMP_DATA_DCC_SRAM', 'KDCC_SRAM'),
     ('MSM_DUMP_DATA_TMC_ETF', 'KTMC_ETF'),
-    ('MSM_DUMP_DATA_TMC_REG', 'KTMC_REG')
+    ('MSM_DUMP_DATA_TMC_REG', 'KTMC_REG'),
+    ('MSM_DUMP_DATA_MISC', 'KMISC')
 
 ]
 
@@ -203,6 +207,19 @@ class DebugImage_v2():
             print_out_str('!!! Could not dump SRAM')
         else:
             ram_dump.dcc = True
+        return
+
+    def parse_sysdbg_regs(self, version, start, end, client_id, ram_dump):
+        client_name = self.dump_data_id_lookup_table[client_id]
+
+        print_out_str(
+            'Parsing {0} context start {1:x} end {2:x}'.format(client_name, start, end))
+
+        sysregs = SysRegDump(start, end)
+        if sysregs.dump_sysreg_img(ram_dump) is False:
+            print_out_str('!!! Could not dump sysdbg_regs')
+        else:
+            ram_dump.sysreg = True
         return
 
     def parse_vsens(self, version, start, end, client_id, ram_dump):
@@ -466,6 +483,28 @@ class DebugImage_v2():
         else:
             p = subprocess.Popen([sys.executable, dcc_parser_path, '-s', sram_file, '--out-dir', out_dir],
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+        print_out_str('--------')
+        print_out_str(p.communicate()[0])
+
+    def parse_sysreg(self,ram_dump):
+        out_dir = ram_dump.outdir
+        sysreg_parser_path_minidump = os.path.join(os.path.dirname(__file__), '..', 'dcc_parser',
+                                                'sysregs_parser_minidump.py')
+        if sysreg_parser_path_minidump is None:
+            print_out_str("!!! Incorrect path for SYSREG specified.")
+            return
+        if not os.path.exists(sysreg_parser_path_minidump):
+            print_out_str("!!! sysreg_parser_path_minidump {0} does not exist! "
+                          "Check your settings!"
+                          .format(sysreg_parser_path_minidump))
+            return
+        if os.path.getsize(os.path.join(out_dir, 'sysdbg_regs.bin')) > 0:
+            sysdbg_file = os.path.join(out_dir, 'sysdbg_regs.bin')
+        else:
+            return
+        p = subprocess.Popen([sys.executable, sysreg_parser_path_minidump, '-s', sysdbg_file, '--out-dir', out_dir],
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         print_out_str('--------')
         print_out_str(p.communicate()[0])
@@ -768,6 +807,8 @@ class DebugImage_v2():
                                 client_end, client_id, ram_dump)
         if ram_dump.dcc:
             self.parse_dcc(ram_dump)
+        if ram_dump.sysreg:
+            self.parse_sysreg(ram_dump)
         self.qdss.dump_standard(ram_dump)
         if not ram_dump.skip_qdss_bin:
             self.qdss.save_etf_bin(ram_dump)

@@ -121,8 +121,12 @@ def get_sdhci_irqs(ram_dump):
     if nr_irqs > 50000:
         return
     for i in range(0, nr_irqs):
-        irq_desc = irqs.radix_tree_lookup_element(
-            ram_dump, irq_desc_tree, i)
+        if (ram_dump.kernel_version >= (4,9,0)):
+            irq_desc = irqs.radix_tree_lookup_element_v2(
+                ram_dump, irq_desc_tree, i)
+        else:
+            irq_desc = irqs.radix_tree_lookup_element(
+                ram_dump, irq_desc_tree, i)
         if irq_desc is None:
             continue
         action = ram_dump.read_word(irq_desc + irq_action_offset)
@@ -144,7 +148,12 @@ def find_sdhci_host(ramdump, irq):
     irq_action_offset = ramdump.field_offset('struct irq_desc', 'action')
     dev_id = ramdump.field_offset('struct irqaction', 'dev_id')
     irqs = IrqParse(RamParser)
-    sdhci_irq_desc = irqs.radix_tree_lookup_element(ramdump, irq_desc_tree, irq)
+    if (ramdump.kernel_version >= (4,9,0)):
+        sdhci_irq_desc = irqs.radix_tree_lookup_element_v2(
+            ramdump, irq_desc_tree, irq)
+    else:
+        sdhci_irq_desc = irqs.radix_tree_lookup_element(
+            ramdump, irq_desc_tree, irq)
     sdhci_irq_action = ramdump.read_word(sdhci_irq_desc + irq_action_offset)
     sdhci_host = ramdump.read_word(sdhci_irq_action + dev_id)
     return sdhci_host
