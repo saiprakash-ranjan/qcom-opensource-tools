@@ -187,7 +187,7 @@ def dump_regs_json(options):
 def dump_regs_xml(options):
     log.info("Dumping regs in XML format in \'{0}\' file.".format(options.outfile))
     parsed_data.info("<?xml version=\"1.0\" encoding=\"utf-8\"?>")
-    parsed_data.info("<hwioDump version=\"1\"")
+    parsed_data.info("<hwioDump version=\"1\">")
     parsed_data.info("\t<timestamp>{0}</timestamp>".format(datetime.date.today().strftime('%m/%d/%y')))
     parsed_data.info("\t<generator>Linux DCC Parser</generator>")
     parsed_data.info("\t<chip name=\"{0}\" version=\"{1}\">".format(options.chipname, options.chipversion))
