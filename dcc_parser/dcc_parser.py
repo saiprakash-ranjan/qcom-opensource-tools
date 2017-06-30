@@ -92,6 +92,9 @@ def read_config(config_pt):
         #word size
         track_len = 4
 
+    if options.config_offset is not None:
+        config_pt.seek(options.config_offset, 1)
+
     while True:
         word = config_pt.read(4)
         if len(word) != 4:
@@ -223,6 +226,8 @@ if __name__ == '__main__':
                       help='chip version')
     parser.add_option('--v2', dest='version', action="store_const", const='2',
                       help='DCC driver version 2')
+    parser.add_option('--config-offset', dest='config_offset', type=int,
+                      help='Start offset for DCC configuration')
 
     (options, args) = parser.parse_args()
 
