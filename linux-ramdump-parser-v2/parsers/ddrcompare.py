@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2014-2015, 2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -45,7 +45,7 @@ class DDRCompare(RamParser) :
                 bitcheck = virtual & 0x3
                 if bitcheck:
                     virtual = virtual - bitcheck
-                physical = self.ramdump.virt_to_phys(virtual)
+                physical = self.ramdump.virt_to_phys(virtual + self.ramdump.get_kaslr_offset())
 
                 magic = hex(self.ramdump.read_u32(physical, False)).rstrip("L").lstrip("0x").zfill(8)
                 if (m.group(2) != magic):
