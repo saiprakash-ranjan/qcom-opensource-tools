@@ -79,16 +79,17 @@ class DDRCompare(RamParser) :
             return -1;
 
     def validate_task_struct(self, address):
-        thread_info_address = address + self.ramdump.field_offset('struct task_struct', 'stack');
-        thread_info_pointer = self.ramdump.read_word(thread_info_address, True)
+        thread_info_address = self.ramdump.get_thread_info_addr(address)
+        if self.ramdump.is_thread_info_in_task():
+            #Task is no longer found in thread_info
+            task_struct = address
+        else:
+            task_address = thread_info_address + self.ramdump.field_offset('struct thread_info', 'task');
+            task_struct = self.ramdump.read_word(task_address, True)
 
-        task_address = thread_info_pointer + self.ramdump.field_offset('struct thread_info', 'task');
-        task_struct = self.ramdump.read_word(task_address, True)
+        cpu_number = self.ramdump.get_task_cpu(task_struct, thread_info_address)
 
-        cpu_address = thread_info_pointer + self.ramdump.field_offset('struct thread_info', 'cpu');
-        cpu_number = self.ramdump.read_u32(cpu_address, True)
-
-        if((address != task_struct) or (thread_info_pointer == 0x0)):
+        if((address != task_struct) or (thread_info_address == 0x0)):
             self.output_file.write(hex(address) + " seems to be corrupted! Please check task_struct and thread_info to find corruptions\n")
             return -1
 

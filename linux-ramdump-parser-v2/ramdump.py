@@ -1548,8 +1548,28 @@ class RamDump():
         """
         return xrange(self.get_num_cpus())
 
+    def is_thread_info_in_task(self):
+        return self.is_config_defined('CONFIG_THREAD_INFO_IN_TASK')
+
+    def get_thread_info_addr(self, task_addr):
+        if self.is_thread_info_in_task():
+            thread_info_address = task_addr + self.field_offset('struct task_struct', 'thread_info')
+        else:
+            thread_info_ptr = task_addr + self.field_offset('struct task_struct', 'stack')
+            thread_info_address = self.read_word(thread_info_ptr, True)
+        return thread_info_address
+
+    def get_task_cpu(self, task_struct_addr, thread_info_struct_addr):
+        if self.is_thread_info_in_task():
+            offset_cpu = self.field_offset('struct task_struct', 'cpu')
+            cpu = self.read_int(task_struct_addr + offset_cpu)
+        else:
+            offset_cpu = self.field_offset('struct thread_info', 'cpu')
+            cpu = self.read_int(thread_info_struct_addr + offset_cpu)
+        return cpu
+
     def thread_saved_field_common_32(self, task, reg_offset):
-        thread_info = self.read_word(task + self.field_offset('struct task_struct', 'stack'))
+        thread_info = self.read_word(self.get_thread_info_addr(task))
         cpu_context_offset = self.field_offset('struct thread_info', 'cpu_context')
         val = self.read_word(thread_info + cpu_context_offset + reg_offset)
         return val
