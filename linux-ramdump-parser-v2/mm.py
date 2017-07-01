@@ -271,8 +271,11 @@ def dont_map_hole_lowmem_page_address(ramdump, page):
 
 def normal_lowmem_page_address(ramdump, page):
     phys = page_to_pfn(ramdump, page) << 12
-    memstart_addr = ramdump.read_s64('memstart_addr')
-    return phys - memstart_addr + ramdump.page_offset
+    if ramdump.arm64:
+        memstart_addr = ramdump.read_s64('memstart_addr')
+        return phys - memstart_addr + ramdump.page_offset
+    else:
+        return phys - ramdump.phys_offset + ramdump.page_offset
 
 
 def lowmem_page_address(ramdump, page):
