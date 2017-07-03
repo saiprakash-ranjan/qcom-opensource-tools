@@ -458,9 +458,10 @@ class DebugImage_v2():
         subprocess.call('{0} -c {1} exit'.format(qtf_path, port))
         server_proc.communicate('quit')
 
-    def parse_dcc(self, ram_dump):
+    def parse_dcc(self, ram_dump, config_offset):
         out_dir = ram_dump.outdir
-
+        bin_dir = ram_dump.ram_addr
+        bin_dir="\\".join(bin_dir[0][0].split('\\')[:-1])
         dcc_parser_path = os.path.join(os.path.dirname(__file__), '..', 'dcc_parser', 'dcc_parser.py')
 
         if dcc_parser_path is None:
@@ -471,16 +472,17 @@ class DebugImage_v2():
             print_out_str("!!! dcc_parser_path {0} does not exist! Check your settings!".format(dcc_parser_path))
             return
 
-        if os.path.getsize(os.path.join(out_dir, 'sram.bin')) > 0:
+        if os.path.isfile(os.path.join(out_dir, 'sram.bin')) > 0:
             sram_file = os.path.join(out_dir, 'sram.bin')
+        elif os.path.isfile(os.path.join(bin_dir, 'DCC_SRAM.BIN')):
+            sram_file = os.path.join(bin_dir, 'DCC_SRAM.BIN')
         else:
             return
-        bin_dir = ram_dump.ram_addr
-        bin_dir="\\".join(bin_dir[0][0].split('\\')[:-1])
-        if (os.path.isfile(os.path.join(bin_dir, 'DCC_SRAM.BIN'))):
-            p = subprocess.Popen([sys.executable, dcc_parser_path, '-s', sram_file, '--out-dir', out_dir, '--v2'],
-                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        else:
+
+        if (os.path.isfile(os.path.join(bin_dir, 'DCC_SRAM.BIN'))) and (config_offset != None):
+            cmd = ["-s ", sram_file, " --out-dir ", out_dir, " --config-offset ", str(config_offset), " --v2"]
+            p = subprocess.Popen([sys.executable, dcc_parser_path, cmd], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        elif config_offset == None:
             p = subprocess.Popen([sys.executable, dcc_parser_path, '-s', sram_file, '--out-dir', out_dir],
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -806,7 +808,9 @@ class DebugImage_v2():
                                 self, 20, client_entry,
                                 client_end, client_id, ram_dump)
         if ram_dump.dcc:
-            self.parse_dcc(ram_dump)
+            self.parse_dcc(ram_dump, config_offset = None)
+        else:
+            self.parse_dcc(ram_dump, config_offset = "0x6000")
         if ram_dump.sysreg:
             self.parse_sysreg(ram_dump)
         self.qdss.dump_standard(ram_dump)
