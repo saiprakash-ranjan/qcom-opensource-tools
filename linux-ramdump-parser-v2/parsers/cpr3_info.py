@@ -1,4 +1,4 @@
-# Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -218,6 +218,9 @@ class CPR3Info(RamParser):
         if apm_thresh_volt == 0:
             return
         tmp = '%-30s = %d uV\n' % ("APM threshold", apm_thresh_volt)
+        if apm_addr == 0:
+            self.output.append(tmp)
+            return
         apm_supply = self.ramdump.read_int(
             apm_addr + self.ramdump.field_offset('struct msm_apm_ctrl_dev',
                                                  'supply'))

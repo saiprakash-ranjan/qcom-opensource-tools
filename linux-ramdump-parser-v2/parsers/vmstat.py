@@ -1,4 +1,4 @@
-# Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2013-2015, 2017 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -62,7 +62,10 @@ class ZoneInfo(RamParser):
             zone = zone + sizeofzone
 
         print_out_str('\nGlobal Stats')
-        vmstats_addr = self.ramdump.address_of('vm_stat')
+        if self.ramdump.kernel_version < (4,9,0):
+            vmstats_addr = self.ramdump.address_of('vm_stat')
+        else:
+            vmstats_addr = self.ramdump.address_of('vm_zone_stat')
         for i in xrange(0, max_zone_stats):
             print_out_str('{0:30}: {1:8}'.format(vmstat_names[i], self.ramdump.read_word(
                 self.ramdump.array_index(vmstats_addr, 'atomic_long_t', i))))
