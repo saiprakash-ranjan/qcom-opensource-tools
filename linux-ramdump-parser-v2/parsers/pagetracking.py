@@ -43,8 +43,14 @@ class PageTracking(RamParser):
                                     'struct mem_section', 'page_ext')
             trace_offset = self.ramdump.field_offset(
                                     'struct page_ext', 'trace')
-            trace_entries_offset = self.ramdump.field_offset(
-                                'struct page_ext', 'trace_entries')
+            if self.ramdump.is_config_defined('CONFIG_STACKDEPOT'):
+                trace_entries_offset = self.ramdump.field_offset(
+                                        'struct stack_record', 'entries')
+            else:
+                trace_entries_offset = self.ramdump.field_offset(
+                                        'struct page_ext', 'trace_entries')
+
+
             nr_entries_offset = self.ramdump.field_offset(
                                 'struct page_ext', 'nr_entries')
             mem_section_size = self.ramdump.sizeof("struct mem_section")
@@ -79,11 +85,32 @@ class PageTracking(RamParser):
                 page_ext = self.ramdump.read_word(
                             mem_section_0_offset + page_ext_offset)
                 temp_page_ext = page_ext + (pfn * page_ext_size)
-                nr_trace_entries = self.ramdump.read_int(
-                                    temp_page_ext + nr_entries_offset)
-                struct_holding_trace_entries = temp_page_ext
+
                 order = self.ramdump.read_structure_field(
                             temp_page_ext, 'struct page_ext', 'order')
+                if not self.ramdump.is_config_defined('CONFIG_STACKDEPOT'):
+
+                    nr_trace_entries = self.ramdump.read_int(
+                                    temp_page_ext + nr_entries_offset)
+                    struct_holding_trace_entries = temp_page_ext
+
+                else:
+                    handle = self.ramdump.read_structure_field(
+                            temp_page_ext, 'struct page_ext', 'handle')
+                    slabindex     = handle & 0x1fffff
+                    handle_offset = (handle  >> 0x15) & 0x3ff
+                    handle_offset = handle_offset << 4
+
+                    stack_slabs = self.ramdump.address_of('stack_slabs')
+                    stack_slabs_size = self.ramdump.sizeof('void *')
+                    slab =  self.ramdump.read_word(stack_slabs + ( stack_slabs_size * slabindex))
+                    stack = slab + handle_offset
+
+                    nr_trace_entries = self.ramdump.read_structure_field(
+                             stack, 'struct stack_record', 'size')
+
+                    struct_holding_trace_entries = stack
+
 
             if nr_trace_entries <= 0 or nr_trace_entries > 16:
                 continue
