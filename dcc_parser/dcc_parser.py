@@ -93,7 +93,7 @@ def read_config(config_pt):
         track_len = 4
 
     if options.config_offset is not None:
-        config_pt.seek(options.config_offset, 1)
+        config_pt.seek(int(options.config_offset, 16), 1)
 
     while True:
         word = config_pt.read(4)
