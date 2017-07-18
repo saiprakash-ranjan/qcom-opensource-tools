@@ -831,7 +831,12 @@ class Watchdog(RamParser):
         get_wdog_timing(self.ramdump)
 
 
+def ns_to_sec(ns):
+    return ns/1000000000.0
+
+
 def get_wdog_timing(ramdump):
+    logical_map = []
     jiffies = ramdump.read_word('jiffies')
     last_jiffies_update = ramdump.read_word('last_jiffies_update')
     tick_do_timer_cpu = ramdump.read_word('tick_do_timer_cpu')
@@ -841,8 +846,8 @@ def get_wdog_timing(ramdump):
     timer_expires_off = ramdump.field_offset('struct timer_list', 'expires')
     pet_timer_expires = ramdump.read_word(
         wdog_data_addr + pet_timer_off + timer_expires_off)
-    last_pet_off = ramdump.field_offset('struct msm_watchdog_data', 'last_pet')
-    wdog_last_pet = ramdump.read_word(wdog_data_addr + last_pet_off)
+    wdog_last_pet = ramdump.read_structure_field(
+        wdog_data_addr, 'struct msm_watchdog_data', 'last_pet')
     timer_expired_off = ramdump.field_offset(
         'struct msm_watchdog_data', 'timer_expired')
     pet_timer_expired = ramdump.read_word(wdog_data_addr + timer_expired_off)
@@ -851,23 +856,78 @@ def get_wdog_timing(ramdump):
         'struct msm_watchdog_data', 'bark_time')
     pet_time = ramdump.read_int(wdog_data_addr + pet_time_off)
     bark_time = ramdump.read_int(wdog_data_addr + bark_time_off)
+    wdog_alive_mask = ramdump.read_structure_field(
+        wdog_data_addr, 'struct msm_watchdog_data', 'alive_mask.bits')
+    cpu_online_bits = ramdump.read_word('cpu_online_bits')
+    wdog_task = ramdump.read_structure_field(
+        wdog_data_addr, 'struct msm_watchdog_data', 'watchdog_task')
+    wdog_task_state = ramdump.read_structure_field(
+        wdog_task, 'struct task_struct', 'state')
+    wdog_task_threadinfo = ramdump.read_structure_field(
+        wdog_task, 'struct task_struct', 'stack')
+    wdog_task_oncpu = ramdump.read_structure_field(
+        wdog_task, 'struct task_struct', 'on_cpu')
+    wdog_task_cpu = ramdump.read_structure_field(
+        wdog_task_threadinfo, 'struct thread_info', 'cpu')
+    wdog_task_arrived = ramdump.read_structure_field(
+        wdog_task, 'struct task_struct', 'sched_info.last_arrival')
+    wdog_task_queued = ramdump.read_structure_field(
+        wdog_task, 'struct task_struct', 'sched_info.last_queued')
+    logical_map_addr = ramdump.address_of('__cpu_logical_map')
+
+# Assuming number of cores per cluster as 4 in case of multicluster.
+# New targets has only one cluster. So this will work for both.
+    for i in range(0, ramdump.get_num_cpus()):
+        cpu_logical_map_addr = logical_map_addr + (i * 8)
+        core_id = ramdump.read_u64(cpu_logical_map_addr)
+        phys_core = (core_id & 0x00FF) + ((core_id >> 8) * 4)
+        logical_map.append(phys_core)
+
     print_out_str('Non-secure Watchdog data')
-    print_out_str('Pet time: {0}s'.format(pet_time/1000.0))
-    print_out_str('Bark time: {0}s'.format(bark_time/1000.0))
-    print_out_str('Watchdog last pet: {0}'.format(wdog_last_pet/1000000000.0))
-    if pet_timer_expired == 1:
-        print_out_str('Watchdog pet timer expired')
+    print_out_str('Pet time: {0}s'.format(pet_time / 1000.0))
+    print_out_str('Bark time: {0}s'.format(bark_time / 1000.0))
+    if wdog_last_pet > 1000000000:
+        last_pet_sec = ns_to_sec(wdog_last_pet)
+        print_out_str('Watchdog last pet: {0:.9f}'.format(last_pet_sec))
+    else:
+        print_out_str('Watchdog last pet: {0:.3f}'.format(wdog_last_pet))
+
+    if wdog_task_state == 0 and wdog_task_oncpu == 1:
+        print_out_str("Watchdog task running on core {0} from {1:.6f}".format(
+            wdog_task_cpu, ns_to_sec(wdog_task_arrived)))
+        print_out_str("CPUs responded to pet(alive_mask): {0:08b}".format(
+            wdog_alive_mask))
+        alive_cpus = wdog_alive_mask | (~cpu_online_bits)
+        for i in range(0, ramdump.get_num_cpus()):
+            if (alive_cpus & 1):
+                alive_cpus = alive_cpus >> 1
+            else:
+                print_out_str("CPU which didn't respond to pet: {0}".format(i))
+                break
+
+    elif wdog_task_state == 0:
+        print_out_str(
+            "Watchdog task is waiting on core {0} from {1:.6f}".format(
+                wdog_task_cpu, ns_to_sec(wdog_task_queued)))
+
+    elif wdog_task_state == 1 and pet_timer_expired == 1:
+        print_out_str("Pet timer expired but Watchdog task is not queued")
+
     else:
         print_out_str('Watchdog pet timer not expired')
         if jiffies > pet_timer_expires:
             print_out_str('Current jiffies crossed pet_timer expires jiffies')
+
+    print_out_str('CPU online bits: {0:b}'.format(cpu_online_bits))
     print_out_str('pet_timer_expires: {0}'.format(pet_timer_expires))
     print_out_str('Current jiffies  : {0}'.format(jiffies))
     print_out_str(
         'Timestamp of last timer interrupt(last_jiffies_update): {0}'.format(
-            last_jiffies_update/1000000000.0))
-    print_out_str('Core which updates jiffies(tick_do_timer_cpu): {0}'.format(
-        tick_do_timer_cpu))
+            ns_to_sec(last_jiffies_update)))
+    print_out_str("tick_do_timer_cpu: {0}".format(tick_do_timer_cpu))
+    print_out_str('tick_do_timer_cpu is core which increments jiffies and '
+                  'processes watchdog pet timer')
+    print_out_str('CPU logical map: {0}'.format(logical_map))
     epoch_ns = ramdump.read_word('cd.read_data[0].epoch_ns')
     epoch_cyc = ramdump.read_word('cd.read_data[0].epoch_cyc')
     print_out_str('epoch_ns: {0}ns  epoch_cyc: {1}'.format(epoch_ns,epoch_cyc))
