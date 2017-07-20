@@ -154,6 +154,7 @@ def add_flat_mapping(mappings, fl_idx, sl_idx, tl_idx, ll_idx, phy_addr,
     elif map_type == LL_AP_PR_RO:
         map_type_str = '[P RO]'
 
+    shareability_str = 'N/A'
     if shareability != -1:
         if shareability == SH_NON_SHARE:
             shareability_str = 'Non-Shareable'
@@ -163,9 +164,8 @@ def add_flat_mapping(mappings, fl_idx, sl_idx, tl_idx, ll_idx, phy_addr,
             shareability_str = 'Outer-Shareable'
         if shareability == SH_INNER_SHARE:
             shareability_str = 'Inner-Shareable'
-    else:
-        shareability_str = 'N/A'
 
+    attr_indx_str = 'N/A'
     if attr_indx != -1:
         if attr_indx == ATTR_IDX_NONCACHED:
             attr_indx_str = 'Non-Cached'
@@ -173,8 +173,6 @@ def add_flat_mapping(mappings, fl_idx, sl_idx, tl_idx, ll_idx, phy_addr,
             attr_indx_str = 'Cached'
         if attr_indx == ATTR_IDX_DEV:
             attr_indx_str = 'Device'
-    else:
-        attr_indx_str = 'N/A'
 
     if xn_bit == 1:
         execute_never_str = 'True'
@@ -431,7 +429,7 @@ def parse_aarch64_tables(ramdump, d, domain_num):
         iommu_context = iommu_context or 'None attached'
 
         outfile.write(
-            'IOMMU Contextttt: %s. Domain: %s'
+            'IOMMU Context: %s. Domain: %s'
             '[L2 cache redirect for page tables is %s]\n' % (
                 iommu_context, d.client_name, redirect))
         outfile.write(
