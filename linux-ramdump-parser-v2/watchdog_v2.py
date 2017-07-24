@@ -858,7 +858,10 @@ def get_wdog_timing(ramdump):
     bark_time = ramdump.read_int(wdog_data_addr + bark_time_off)
     wdog_alive_mask = ramdump.read_structure_field(
         wdog_data_addr, 'struct msm_watchdog_data', 'alive_mask.bits')
-    cpu_online_bits = ramdump.read_word('cpu_online_bits')
+    if (ramdump.kernel_version >= (4, 9, 0)):
+        cpu_online_bits = ramdump.read_word('__cpu_online_mask')
+    else:
+        cpu_online_bits = ramdump.read_word('cpu_online_bits')
     wdog_task = ramdump.read_structure_field(
         wdog_data_addr, 'struct msm_watchdog_data', 'watchdog_task')
     wdog_task_state = ramdump.read_structure_field(
@@ -875,14 +878,10 @@ def get_wdog_timing(ramdump):
         wdog_task, 'struct task_struct', 'sched_info.last_queued')
     logical_map_addr = ramdump.address_of('__cpu_logical_map')
 
-# Assuming number of cores per cluster as 4 in case of multicluster.
-# New targets has only one cluster. So this will work for both.
     for i in range(0, ramdump.get_num_cpus()):
         cpu_logical_map_addr = logical_map_addr + (i * 8)
         core_id = ramdump.read_u64(cpu_logical_map_addr)
-        phys_core = (core_id & 0x00FF) + ((core_id >> 8) * 4)
-        logical_map.append(phys_core)
-
+        logical_map.append(core_id)
     print_out_str('Non-secure Watchdog data')
     print_out_str('Pet time: {0}s'.format(pet_time / 1000.0))
     print_out_str('Bark time: {0}s'.format(bark_time / 1000.0))
