@@ -160,6 +160,7 @@ class DebugImage_v2():
         reg_info = sv2.prepare_dict()
         if reg_info is not None:
             sv2.dump_core_pc(ram_dump)
+            sv2.dump_all_regs(ram_dump)
         return
 
     def parse_cpu_ctx(self, version, start, end, client_id, ram_dump):
