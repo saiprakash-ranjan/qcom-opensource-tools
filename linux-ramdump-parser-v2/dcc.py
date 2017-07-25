@@ -60,8 +60,12 @@ class DccSramDump():
     def __init__(self, start, end, ram_dump):
         self.start_addr = start
         self.end_addr = end
-        self.bin_dir = ram_dump.ram_addr
-        self.bin_dir="\\".join(self.bin_dir[0][0].split('\\')[:-1])
+        self.bin_dir = None
+        if ram_dump.ram_addr is None:
+            self.bin_dir = ram_dump.autodump
+        else:
+            self.bin_dir = ram_dump.ram_addr
+            self.bin_dir="\\".join(self.bin_dir[0][0].split('\\')[:-1])
         self.dcc_bin = os.path.join(self.bin_dir, 'DCC_SRAM.BIN')
 
         if os.path.isfile(self.dcc_bin):
