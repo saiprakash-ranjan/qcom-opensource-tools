@@ -445,7 +445,7 @@ class L1_DCache_KRYO3XX_SILVER(CacheDumpType_v1):
         self.NumSets = 0x80
         self.NumWays = 4
 
-    def MESI_to_string(MESI_d):
+    def MESI_to_string(self, MESI_d):
         if MESI_d == 0:
             return 'I'
         elif MESI_d == 1:
@@ -483,7 +483,7 @@ class L1_ICache_KRYO3XX_SILVER(CacheDumpType_v1):
         self.NumSets = 0x80
         self.NumWays = 4
 
-    def valid_to_string(valid_d):
+    def valid_to_string(self, valid_d):
         if valid_d == 0:
             return 'A32'
         elif valid_d == 1:
@@ -518,7 +518,7 @@ class L1_DCache_KRYO3XX_GOLD(CacheDumpType_v1):
         self.NumSets = 0x40
         self.NumWays = 16
 
-    def MESI_to_string(MESI_d):
+    def MESI_to_string(self, MESI_d):
         if MESI_d == 0:
             return 'I'
         elif MESI_d == 1:
@@ -537,7 +537,7 @@ class L1_DCache_KRYO3XX_GOLD(CacheDumpType_v1):
         mesi_d = (data[0] >> 2) & 0x3
 
         addr = (addr_higher << 22) | addr_lower
-        mesi = MESI_to_string(mesi_d)
+        mesi = self.MESI_to_string(mesi_d)
         output.append(addr)
         output.append(mesi)
 
@@ -650,10 +650,10 @@ lookuptable[("sdm845", 0x66, 0x14)] = L1_ICache_KRYO3XX_GOLD()
 lookuptable[("sdm845", 0x67, 0x14)] = L1_ICache_KRYO3XX_GOLD()
 
 
-lookuptable[("sdm845", 0x121, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
-lookuptable[("sdm845", 0x122, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
-lookuptable[("sdm845", 0x123, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
-lookuptable[("sdm845", 0x124, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x140, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x141, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x142, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x143, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
 
 # "sdm660"
 lookuptable[("660", 0x80, 0x14)] = L1_DCache_KRYO2XX_SILVER()
@@ -806,3 +806,13 @@ lookuptable[("8953", 0x84, 0x14)] = L1_DCache_A53()
 lookuptable[("8953", 0x85, 0x14)] = L1_DCache_A53()
 lookuptable[("8953", 0x86, 0x14)] = L1_DCache_A53()
 lookuptable[("8953", 0x87, 0x14)] = L1_DCache_A53()
+
+# sdm450
+lookuptable[("450", 0x80, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x81, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x82, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x83, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[("450", 0x87, 0x14)] = L1_DCache_A53()

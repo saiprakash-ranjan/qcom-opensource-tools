@@ -27,6 +27,7 @@ class TimerList(RamParser) :
         self.tvec_base = 'struct tvec_base'
         self.tvec_bases = 'tvec_bases'
         self.next_timer = 'next_timer'
+        self.global_deferrable = 'tvec_base_deferrable'
 
         if (major, minor) >= (4, 9):
             self.vectors = {'vectors': 512}
@@ -34,6 +35,7 @@ class TimerList(RamParser) :
             self.tvec_base = 'struct timer_base'
             self.tvec_bases = 'timer_bases'
             self.next_timer = 'next_expiry'
+            self.global_deferrable = 'timer_base_deferrable'
         # Timerlist structure changed in kernel 4.2
         # Requires separate processing
         if (major, minor) >= (4, 2):
@@ -110,7 +112,7 @@ class TimerList(RamParser) :
     def get_timer_list(self):
         self.output_file.write("Timer List Dump\n\n")
 
-        tvec_base_deferral_addr = self.ramdump.address_of('tvec_base_deferrable')
+        tvec_base_deferral_addr = self.ramdump.address_of(self.global_deferrable)
         if tvec_base_deferral_addr:
             timer_jiffies_addr = tvec_base_deferral_addr + self.ramdump.field_offset(self.tvec_base, self.timer_jiffies)
             next_timer_addr = tvec_base_deferral_addr + self.ramdump.field_offset(self.tvec_base, self.next_timer)

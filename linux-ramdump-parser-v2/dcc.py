@@ -1,4 +1,4 @@
-# Copyright (c) 2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2015, 2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -10,6 +10,7 @@
 # GNU General Public License for more details.
 
 import struct
+import os
 from print_out import print_out_str
 from ramparse import VERSION
 
@@ -56,15 +57,25 @@ class DccRegDump():
         outfile.close()
 
 class DccSramDump():
-    def __init__(self, start, end):
+    def __init__(self, start, end, ram_dump):
         self.start_addr = start
         self.end_addr = end
+        self.bin_dir = ram_dump.ram_addr
+        self.bin_dir="\\".join(self.bin_dir[0][0].split('\\')[:-1])
+        self.dcc_bin = os.path.join(self.bin_dir, 'DCC_SRAM.BIN')
+
+        if os.path.isfile(self.dcc_bin):
+            self.start_addr = 0x6000
+            self.end_addr = 0x8000
 
     def dump_sram_img(self, ram_dump):
         if self.start_addr >= self.end_addr:
                 return False
 
         rsz = self.end_addr - self.start_addr
+
+        if os.path.isfile(self.dcc_bin):
+            return self.dump_sram_img_bin(ram_dump, self.dcc_bin)
 
         if dcc_regs.has_key('DCC_HW_INFO') == False \
                         or dcc_regs['DCC_HW_INFO'] == 0:
@@ -80,10 +91,25 @@ class DccSramDump():
             return False
 
         sramfile = ram_dump.open_file('sram.bin')
+
         for i in range(0, rsz):
             val = ram_dump.read_byte(self.start_addr + i, False)
             sramfile.write(struct.pack('<B', val))
 
+        sramfile.close()
+
+        return True
+
+    def dump_sram_img_bin(self, ram_dump, dcc_bin):
+        if self.start_addr >= self.end_addr:
+                return False
+
+        f = open(dcc_bin, 'rb')
+        f.seek(self.start_addr, 1)
+        bin_data=f.read()
+        sramfile = ram_dump.open_file('sram.bin')
+        sramfile.write(bin_data)
+        f.close()
         sramfile.close()
 
         return True
