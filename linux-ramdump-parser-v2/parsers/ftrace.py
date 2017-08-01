@@ -88,8 +88,9 @@ class FtraceParser(RamParser):
 
         crashargs = [crashtool]
 
-        if self.ramdump.kaslr_offset is not None:
-            kaslroffset = "--kaslr={0}".format(hex(self.ramdump.kaslr_offset))
+        kaslr_offset = self.ramdump.get_kaslr_offset()
+        if kaslr_offset != 0:
+            kaslroffset = "--kaslr={0}".format(hex(kaslr_offset))
             crashargs.append(kaslroffset)
 
         if self.ramdump.kimage_voffset is not None:

@@ -571,40 +571,39 @@ class LLC_SYSTEM_CACHE_KRYO3XX(CacheDumpType_v1):
     """Refer to documentation:LLC_HDD"""
     def __init__(self):
         super(LLC_SYSTEM_CACHE_KRYO3XX, self).__init__()
-        self.tableformat.addColumn('G0 Valid')
-        self.tableformat.addColumn('G0 Dirty')
-        self.tableformat.addColumn('G1 Valid')
-        self.tableformat.addColumn('G1 Dirty')
-        self.tableformat.addColumn('SCID')
-        self.tableformat.addColumn('ECC')
-        self.tableformat.addColumn('Tag address')
-        self.unsupported_header_offset = 0
-        self.TagSize = 2
-        self.LineSize = 16
+        self.tableformat.addColumn('Valid')
+        self.tableformat.addColumn('Dirty')
+        self.tableformat.addColumn('SCID      ')
+        self.tableformat.addColumn('Tag Data  ')
+        self.tableformat.addColumn('ECC       ')
+        self.tableformat.addColumn('Physical address1')
+        self.tableformat.addColumn('Physical address2')
+
+        self.unsupported_header_offset = 12
+        self.TagSize = 7
+        self.LineSize = 0x10
         self.NumSets = 0x400
-        self.NumWays = 12
+        self.NumWays = 0x0C
 
     def parse_tag_fn(self, output, data, nset, nway):
-        if self.TagSize != 2:
+        if self.TagSize != 7:
             raise Exception('cache tag size mismatch')
 
-        G0_valid = data[0] & 0x1
-        G1_valid = (data[0] >> 2) & 0x1
-        G0_dirty = (data[0] >> 3) & 0x1
-        G1_dirty = (data[0] >> 4) & 0x1
-        SCID = (data[0] >> 7) & 0x1f
-        ECC_bits = (data[0] >> 14) & 0x7f
+        Valid = data[0]
+        Dirty = data[1]
+        SCID = data[2]
+        Tag_Addr = data[3]
+        ECC_bits = data[4]
+        Phy_Addr_Upper = data[5]
+        Phy_Addr_Lower = data[6]
 
-        DONE_bit = (data[1] >> 28) & 0x1
-        addr = data[1] & 0x3fffffff
-
-        output.append(G0_valid)
-        output.append(G0_dirty)
-        output.append(G1_valid)
-        output.append(G1_dirty)
+        output.append(Valid)
+        output.append(Dirty)
         output.append(SCID)
+        output.append(Tag_Addr)
         output.append(ECC_bits)
-        output.append(addr)
+        output.append(Phy_Addr_Upper)
+        output.append(Phy_Addr_Lower)
 
 L1_DCache_KRYO2XX_SILVER = L1_DCache_A53
 L1_ICache_KYRO2XX_SILVER = L1_ICache_A53
@@ -650,10 +649,10 @@ lookuptable[("sdm845", 0x66, 0x14)] = L1_ICache_KRYO3XX_GOLD()
 lookuptable[("sdm845", 0x67, 0x14)] = L1_ICache_KRYO3XX_GOLD()
 
 
-lookuptable[("sdm845", 0x140, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
-lookuptable[("sdm845", 0x141, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
-lookuptable[("sdm845", 0x142, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
-lookuptable[("sdm845", 0x143, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x140, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x141, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x142, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm845", 0x143, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
 
 # "sdm660"
 lookuptable[("660", 0x80, 0x14)] = L1_DCache_KRYO2XX_SILVER()
