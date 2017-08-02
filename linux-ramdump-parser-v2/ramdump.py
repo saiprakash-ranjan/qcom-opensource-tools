@@ -590,9 +590,8 @@ class RamDump():
             self.get_hw_id()
 
         if self.kaslr_offset is None:
-            self.get_kaslr_offset()
-            if self.kaslr_offset is not None:
-                self.gdbmi.kaslr_offset = self.kaslr_offset
+            self.determine_kaslr_offset()
+            self.gdbmi.kaslr_offset = self.get_kaslr_offset()
 
         if options.phys_offset is not None:
             print_out_str(
@@ -624,8 +623,7 @@ class RamDump():
 
         self.kimage_vaddr = self.va_start + self.kasan_shadow_size + \
             modules_vsize
-        if self.kaslr_offset is not None:
-            self.kimage_vaddr = self.kimage_vaddr + self.kaslr_offset
+        self.kimage_vaddr = self.kimage_vaddr + self.get_kaslr_offset()
         self.modules_end = self.page_offset
         self.kimage_voffset = self.address_of("kimage_voffset")
         if self.kimage_voffset is not None:
@@ -1003,8 +1001,9 @@ class RamDump():
                 startup_script.write('mmu.scan\n'.encode('ascii', 'ignore'))
 
         where = os.path.abspath(self.vmlinux)
-        if self.kaslr_offset is not None:
-            where += ' 0x{0:x}'.format(self.kaslr_offset)
+        kaslr_offset = self.get_kaslr_offset()
+        if kaslr_offset != 0:
+            where += ' 0x{0:x}'.format(kaslr_offset)
         dloadelf = 'data.load.elf {} /nocode\n'.format(where)
         startup_script.write(dloadelf.encode('ascii', 'ignore'))
 
@@ -1080,13 +1079,16 @@ class RamDump():
             return self.read_word(self.tz_addr, False)
 
     def get_kaslr_offset(self):
-        if(self.kaslr_addr is None):
+        return self.kaslr_offset
+
+    def determine_kaslr_offset(self):
+        self.kaslr_offset = 0
+        if self.kaslr_addr is None:
             print_out_str('!!!! Kaslr addr is not provided.')
         else:
             kaslr_magic = self.read_u32(self.kaslr_addr, False)
             if kaslr_magic != 0xdead4ead:
                 print_out_str('!!!! Kaslr magic does not match.')
-                self.kaslr_offset = None
             else:
                 self.kaslr_offset = self.read_u64(self.kaslr_addr + 4, False)
                 print_out_str("The kaslr_offset extracted is: " + str(hex(self.kaslr_offset)))
@@ -1210,10 +1212,7 @@ class RamDump():
     def setup_symbol_tables(self):
         stream = os.popen(self.nm_path + ' -n ' + self.vmlinux)
         symbols = stream.readlines()
-        kaslr = 0
-
-        if self.kaslr_offset is not None:
-            kaslr = int(self.kaslr_offset)
+        kaslr = self.get_kaslr_offset()
 
         for line in symbols:
             s = line.split(' ')
@@ -1549,8 +1548,28 @@ class RamDump():
         """
         return xrange(self.get_num_cpus())
 
+    def is_thread_info_in_task(self):
+        return self.is_config_defined('CONFIG_THREAD_INFO_IN_TASK')
+
+    def get_thread_info_addr(self, task_addr):
+        if self.is_thread_info_in_task():
+            thread_info_address = task_addr + self.field_offset('struct task_struct', 'thread_info')
+        else:
+            thread_info_ptr = task_addr + self.field_offset('struct task_struct', 'stack')
+            thread_info_address = self.read_word(thread_info_ptr, True)
+        return thread_info_address
+
+    def get_task_cpu(self, task_struct_addr, thread_info_struct_addr):
+        if self.is_thread_info_in_task():
+            offset_cpu = self.field_offset('struct task_struct', 'cpu')
+            cpu = self.read_int(task_struct_addr + offset_cpu)
+        else:
+            offset_cpu = self.field_offset('struct thread_info', 'cpu')
+            cpu = self.read_int(thread_info_struct_addr + offset_cpu)
+        return cpu
+
     def thread_saved_field_common_32(self, task, reg_offset):
-        thread_info = self.read_word(task + self.field_offset('struct task_struct', 'stack'))
+        thread_info = self.read_word(self.get_thread_info_addr(task))
         cpu_context_offset = self.field_offset('struct thread_info', 'cpu_context')
         val = self.read_word(thread_info + cpu_context_offset + reg_offset)
         return val
