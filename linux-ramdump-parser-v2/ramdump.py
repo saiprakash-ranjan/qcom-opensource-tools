@@ -29,6 +29,7 @@ from mmu import Armv7MMU, Armv7LPAEMMU, Armv8MMU
 import parser_util
 import minidump_util
 from importlib import import_module
+import module_table
 
 FP = 11
 SP = 13
@@ -551,6 +552,8 @@ class RamDump():
                 print "Oops, missing required library for minidump. Check README"
                 sys.exit(1)
         self.ram_addr = options.ram_addr
+        self.module_table = module_table.module_table_class()
+        self.module_table.setup_sym_path(options.sym_path)
 
         if options.ram_addr is not None:
             # TODO sanity check to make sure the memory regions don't overlap
@@ -590,9 +593,8 @@ class RamDump():
             self.get_hw_id()
 
         if self.kaslr_offset is None:
-            self.get_kaslr_offset()
-            if self.kaslr_offset is not None:
-                self.gdbmi.kaslr_offset = self.kaslr_offset
+            self.determine_kaslr_offset()
+            self.gdbmi.kaslr_offset = self.get_kaslr_offset()
 
         if options.phys_offset is not None:
             print_out_str(
@@ -624,8 +626,7 @@ class RamDump():
 
         self.kimage_vaddr = self.va_start + self.kasan_shadow_size + \
             modules_vsize
-        if self.kaslr_offset is not None:
-            self.kimage_vaddr = self.kimage_vaddr + self.kaslr_offset
+        self.kimage_vaddr = self.kimage_vaddr + self.get_kaslr_offset()
         self.modules_end = self.page_offset
         self.kimage_voffset = self.address_of("kimage_voffset")
         if self.kimage_voffset is not None:
@@ -715,6 +716,9 @@ class RamDump():
                 print_out_str('!!! Some features may be disabled!')
 
         self.unwind = self.Unwinder(self)
+        if self.module_table.sym_path_exists():
+            self.setup_module_symbols()
+            self.gdbmi.setup_module_table(self.module_table)
 
     def __del__(self):
         self.gdbmi.close()
@@ -1003,8 +1007,9 @@ class RamDump():
                 startup_script.write('mmu.scan\n'.encode('ascii', 'ignore'))
 
         where = os.path.abspath(self.vmlinux)
-        if self.kaslr_offset is not None:
-            where += ' 0x{0:x}'.format(self.kaslr_offset)
+        kaslr_offset = self.get_kaslr_offset()
+        if kaslr_offset != 0:
+            where += ' 0x{0:x}'.format(kaslr_offset)
         dloadelf = 'data.load.elf {} /nocode\n'.format(where)
         startup_script.write(dloadelf.encode('ascii', 'ignore'))
 
@@ -1030,8 +1035,18 @@ class RamDump():
                     'task.config /opt/t32/demo/arm/kernel/linux/linux.t32\n'.encode('ascii', 'ignore'))
                 startup_script.write(
                     'menu.reprogram /opt/t32/demo/arm/kernel/linux/linux.men\n'.encode('ascii', 'ignore'))
+
+        for mod_tbl_ent in self.module_table.module_table:
+            mod_sym_path = mod_tbl_ent.get_sym_path()
+            if mod_sym_path != '':
+                where = os.path.abspath(mod_sym_path)
+                where += ' 0x{0:x}'.format(mod_tbl_ent.module_offset)
+                dloadelf = 'data.load.elf {} /nocode /noclear\n'.format(where)
+                startup_script.write(dloadelf.encode('ascii', 'ignore'))
+
         if not self.minidump:
             startup_script.write('task.dtask\n'.encode('ascii', 'ignore'))
+
         startup_script.write(
             'v.v  %ASCII %STRING linux_banner\n'.encode('ascii', 'ignore'))
         if os.path.exists(out_path + '/regs_panic.cmm'):
@@ -1080,13 +1095,16 @@ class RamDump():
             return self.read_word(self.tz_addr, False)
 
     def get_kaslr_offset(self):
-        if(self.kaslr_addr is None):
+        return self.kaslr_offset
+
+    def determine_kaslr_offset(self):
+        self.kaslr_offset = 0
+        if self.kaslr_addr is None:
             print_out_str('!!!! Kaslr addr is not provided.')
         else:
             kaslr_magic = self.read_u32(self.kaslr_addr, False)
             if kaslr_magic != 0xdead4ead:
                 print_out_str('!!!! Kaslr magic does not match.')
-                self.kaslr_offset = None
             else:
                 self.kaslr_offset = self.read_u64(self.kaslr_addr + 4, False)
                 print_out_str("The kaslr_offset extracted is: " + str(hex(self.kaslr_offset)))
@@ -1210,10 +1228,7 @@ class RamDump():
     def setup_symbol_tables(self):
         stream = os.popen(self.nm_path + ' -n ' + self.vmlinux)
         symbols = stream.readlines()
-        kaslr = 0
-
-        if self.kaslr_offset is not None:
-            kaslr = int(self.kaslr_offset)
+        kaslr = self.get_kaslr_offset()
 
         for line in symbols:
             s = line.split(' ')
@@ -1221,6 +1236,54 @@ class RamDump():
                 self.lookup_table.append((int(s[0], 16) + kaslr,
                                          s[2].rstrip()))
         stream.close()
+
+    def retrieve_modules(self):
+        mod_list = self.address_of('modules')
+        next_offset = self.field_offset('struct list_head', 'next')
+        list_offset = self.field_offset('struct module', 'list')
+        name_offset = self.field_offset('struct module', 'name')
+
+        if self.kernel_version > (4, 4, 0):
+            module_core_offset = self.field_offset('struct module', 'core_layout.base')
+        else:
+            module_core_offset = self.field_offset('struct module', 'module_core')
+
+        next_list_ent = self.read_pointer(mod_list + next_offset)
+        while next_list_ent != mod_list:
+            mod_tbl_ent = module_table.module_table_entry()
+            module = next_list_ent - list_offset
+            name_ptr = module + name_offset
+            mod_tbl_ent.name = self.read_cstring(name_ptr)
+            mod_tbl_ent.module_offset = self.read_pointer(module + module_core_offset)
+            self.module_table.add_entry(mod_tbl_ent)
+            next_list_ent = self.read_pointer(next_list_ent + next_offset)
+
+    def parse_symbols_of_one_module(self, mod_tbl_ent, sym_path):
+        if not mod_tbl_ent.set_sym_path( os.path.join(sym_path, mod_tbl_ent.name + '.ko') ):
+            return
+        stream = os.popen(self.nm_path + ' -n ' + mod_tbl_ent.get_sym_path())
+        symbols = stream.readlines()
+
+        for line in symbols:
+            s = line.split(' ')
+            if len(s) == 3:
+                mod_tbl_ent.sym_lookup_table.append( ( int(s[0], 16) + mod_tbl_ent.module_offset, s[2].rstrip() ) )
+        stream.close()
+
+    def parse_module_symbols(self):
+        for mod_tbl_ent in self.module_table.module_table:
+            self.parse_symbols_of_one_module(mod_tbl_ent, self.module_table.sym_path)
+
+    def add_symbols_to_global_lookup_table(self):
+        for mod_tbl_ent in self.module_table.module_table:
+            for sym in mod_tbl_ent.sym_lookup_table:
+                self.lookup_table.append(sym)
+        self.lookup_table.sort()
+
+    def setup_module_symbols(self):
+        self.retrieve_modules()
+        self.parse_module_symbols();
+        self.add_symbols_to_global_lookup_table()
 
     def address_of(self, symbol):
         """Returns the address of a symbol.
@@ -1302,11 +1365,6 @@ class RamDump():
     def unwind_lookup(self, addr, symbol_size=0):
         if (addr is None):
             return ('(Invalid address)', 0x0)
-
-        # modules are not supported so just print out an address
-        # instead of a confusing symbol
-        if (addr < self.modules_end):
-            return ('(No symbol for address {0:x})'.format(addr), 0x0)
 
         low = 0
         high = len(self.lookup_table)
@@ -1549,8 +1607,28 @@ class RamDump():
         """
         return xrange(self.get_num_cpus())
 
+    def is_thread_info_in_task(self):
+        return self.is_config_defined('CONFIG_THREAD_INFO_IN_TASK')
+
+    def get_thread_info_addr(self, task_addr):
+        if self.is_thread_info_in_task():
+            thread_info_address = task_addr + self.field_offset('struct task_struct', 'thread_info')
+        else:
+            thread_info_ptr = task_addr + self.field_offset('struct task_struct', 'stack')
+            thread_info_address = self.read_word(thread_info_ptr, True)
+        return thread_info_address
+
+    def get_task_cpu(self, task_struct_addr, thread_info_struct_addr):
+        if self.is_thread_info_in_task():
+            offset_cpu = self.field_offset('struct task_struct', 'cpu')
+            cpu = self.read_int(task_struct_addr + offset_cpu)
+        else:
+            offset_cpu = self.field_offset('struct thread_info', 'cpu')
+            cpu = self.read_int(thread_info_struct_addr + offset_cpu)
+        return cpu
+
     def thread_saved_field_common_32(self, task, reg_offset):
-        thread_info = self.read_word(task + self.field_offset('struct task_struct', 'stack'))
+        thread_info = self.read_word(self.get_thread_info_addr(task))
         cpu_context_offset = self.field_offset('struct thread_info', 'cpu_context')
         val = self.read_word(thread_info + cpu_context_offset + reg_offset)
         return val
