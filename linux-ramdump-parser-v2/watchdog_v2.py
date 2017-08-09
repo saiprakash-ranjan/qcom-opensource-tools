@@ -875,10 +875,9 @@ def get_wdog_timing(ramdump):
         wdog_task, 'struct task_struct', 'state')
     wdog_task_threadinfo = ramdump.read_structure_field(
         wdog_task, 'struct task_struct', 'stack')
+    wdog_task_cpu = ramdump.get_task_cpu(wdog_task, wdog_task_threadinfo)
     wdog_task_oncpu = ramdump.read_structure_field(
         wdog_task, 'struct task_struct', 'on_cpu')
-    wdog_task_cpu = ramdump.read_structure_field(
-        wdog_task_threadinfo, 'struct thread_info', 'cpu')
     wdog_task_arrived = ramdump.read_structure_field(
         wdog_task, 'struct task_struct', 'sched_info.last_arrival')
     wdog_task_queued = ramdump.read_structure_field(
@@ -941,11 +940,12 @@ def get_wdog_timing(ramdump):
             'tick_cpu_device') + ramdump.per_cpu_offset(i)
         evt_dev = ramdump.read_structure_field(
             tick_cpu_device, 'struct tick_device', 'evtdev')
-        next_event = ramdump.read_structure_field(
-            evt_dev, 'struct clock_event_device', 'next_event')
-        next_event = ns_to_sec(next_event)
-        print_out_str(
-            "CPU{0} tick_device next_event: {1:.6f}".format(i, next_event))
+        if evt_dev != 0:
+            next_event = ramdump.read_structure_field(
+                evt_dev, 'struct clock_event_device', 'next_event')
+            next_event = ns_to_sec(next_event)
+            print_out_str(
+                "CPU{0} tick_device next_event: {1:.6f}".format(i, next_event))
     epoch_ns = ramdump.read_word('cd.read_data[0].epoch_ns')
     epoch_cyc = ramdump.read_word('cd.read_data[0].epoch_cyc')
     print_out_str('epoch_ns: {0}ns  epoch_cyc: {1}'.format(epoch_ns,epoch_cyc))
