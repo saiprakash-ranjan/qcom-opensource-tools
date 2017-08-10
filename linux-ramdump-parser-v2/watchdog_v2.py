@@ -839,7 +839,7 @@ def get_wdog_timing(ramdump):
     logical_map = []
     jiffies = ramdump.read_word('jiffies')
     last_jiffies_update = ramdump.read_word('last_jiffies_update')
-    tick_do_timer_cpu = ramdump.read_word('tick_do_timer_cpu')
+    tick_do_timer_cpu = ramdump.read_s32('tick_do_timer_cpu')
     wdog_data_addr = ramdump.read_word('wdog_data')
     pet_timer_off = ramdump.field_offset(
         'struct msm_watchdog_data', 'pet_timer')
@@ -858,7 +858,17 @@ def get_wdog_timing(ramdump):
     bark_time = ramdump.read_int(wdog_data_addr + bark_time_off)
     wdog_alive_mask = ramdump.read_structure_field(
         wdog_data_addr, 'struct msm_watchdog_data', 'alive_mask.bits')
-    cpu_online_bits = ramdump.read_word('cpu_online_bits')
+    tick_bc_mask = ramdump.read_word('tick_broadcast_oneshot_mask')
+    tick_bc_pending_mask = ramdump.read_word('tick_broadcast_pending_mask')
+    tick_bc_evt_dev = ramdump.read_structure_field(
+        'tick_broadcast_device', 'struct tick_device', 'evtdev')
+    tick_bc_next_evt = ramdump.read_structure_field(
+        tick_bc_evt_dev, 'struct clock_event_device', 'next_event')
+    tick_bc_next_evt = ns_to_sec(tick_bc_next_evt)
+    if (ramdump.kernel_version >= (4, 9, 0)):
+        cpu_online_bits = ramdump.read_word('__cpu_online_mask')
+    else:
+        cpu_online_bits = ramdump.read_word('cpu_online_bits')
     wdog_task = ramdump.read_structure_field(
         wdog_data_addr, 'struct msm_watchdog_data', 'watchdog_task')
     wdog_task_state = ramdump.read_structure_field(
@@ -874,15 +884,10 @@ def get_wdog_timing(ramdump):
     wdog_task_queued = ramdump.read_structure_field(
         wdog_task, 'struct task_struct', 'sched_info.last_queued')
     logical_map_addr = ramdump.address_of('__cpu_logical_map')
-
-# Assuming number of cores per cluster as 4 in case of multicluster.
-# New targets has only one cluster. So this will work for both.
     for i in range(0, ramdump.get_num_cpus()):
         cpu_logical_map_addr = logical_map_addr + (i * 8)
         core_id = ramdump.read_u64(cpu_logical_map_addr)
-        phys_core = (core_id & 0x00FF) + ((core_id >> 8) * 4)
-        logical_map.append(phys_core)
-
+        logical_map.append(core_id)
     print_out_str('Non-secure Watchdog data')
     print_out_str('Pet time: {0}s'.format(pet_time / 1000.0))
     print_out_str('Bark time: {0}s'.format(bark_time / 1000.0))
@@ -925,9 +930,22 @@ def get_wdog_timing(ramdump):
         'Timestamp of last timer interrupt(last_jiffies_update): {0}'.format(
             ns_to_sec(last_jiffies_update)))
     print_out_str("tick_do_timer_cpu: {0}".format(tick_do_timer_cpu))
-    print_out_str('tick_do_timer_cpu is core which increments jiffies and '
-                  'processes watchdog pet timer')
     print_out_str('CPU logical map: {0}'.format(logical_map))
+    print_out_str('tick_broadcast_oneshot_mask: {0:08b}'.format(tick_bc_mask))
+    print_out_str(
+        'tick_broadcast_pending_mask: {0:08b}'.format(tick_bc_pending_mask))
+    print_out_str(
+        'tick_broad_cast_device next_event: {0:.6f}'.format(tick_bc_next_evt))
+    for i in range(0, ramdump.get_num_cpus()):
+        tick_cpu_device = ramdump.address_of(
+            'tick_cpu_device') + ramdump.per_cpu_offset(i)
+        evt_dev = ramdump.read_structure_field(
+            tick_cpu_device, 'struct tick_device', 'evtdev')
+        next_event = ramdump.read_structure_field(
+            evt_dev, 'struct clock_event_device', 'next_event')
+        next_event = ns_to_sec(next_event)
+        print_out_str(
+            "CPU{0} tick_device next_event: {1:.6f}".format(i, next_event))
     epoch_ns = ramdump.read_word('cd.read_data[0].epoch_ns')
     epoch_cyc = ramdump.read_word('cd.read_data[0].epoch_cyc')
     print_out_str('epoch_ns: {0}ns  epoch_cyc: {1}'.format(epoch_ns,epoch_cyc))

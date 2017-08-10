@@ -76,6 +76,11 @@ class kmem_cache(object):
         self.inuse = ramdump.read_int(addr + offset)
         if self.inuse is None:
             return
+        offset = ramdump.field_offset(
+            'struct kmem_cache', 'red_left_pad')
+        self.red_left_pad = ramdump.read_int(addr + offset)
+        if self.red_left_pad is None:
+            self.red_left_pad = 0
         self.addr = addr
         self.valid = True
 
@@ -147,9 +152,9 @@ class Slabinfo(RamParser):
     def get_track(self, ramdump,  slab, obj, track_type):
         track_size = g_offsetof.sizeof_struct_track
         if slab.offset != 0:
-            p = obj + slab.offset + g_offsetof.sizeof_void_pointer
+            p = obj + slab.red_left_pad + slab.offset + g_offsetof.sizeof_void_pointer
         else:
-            p = obj + slab.inuse
+            p = obj + slab.red_left_pad + slab.inuse
         return p + track_type * track_size
 
     def extract_callstack(self, ramdump, stack, out_file):
