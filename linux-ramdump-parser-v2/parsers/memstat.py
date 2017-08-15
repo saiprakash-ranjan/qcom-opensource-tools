@@ -90,6 +90,8 @@ class MemStats(RamParser):
         offset_total_allocated = \
             self.ramdump.field_offset(
                 'struct ion_heap', 'total_allocated')
+        size = self.ramdump.sizeof(
+                '((struct ion_heap *)0x0)->total_allocated')
         if self.ramdump.arm64:
             addressspace = 8
         else:
@@ -99,9 +101,12 @@ class MemStats(RamParser):
         for i in range(0, number_of_ion_heaps):
             heap_addr_array.append(heap_addr + i * addressspace)
             temp = self.ramdump.read_word(heap_addr_array[i])
-            total_allocated = self.ramdump.read_int(
-                                temp +
-                                offset_total_allocated)
+            if size == 4:
+                total_allocated = self.ramdump.read_int(
+                                    temp + offset_total_allocated)
+            if size == 8:
+                total_allocated = self.ramdump.read_u64(
+                                    temp + offset_total_allocated)
             if total_allocated is None:
                 total_allocated = 0
                 break
