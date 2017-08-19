@@ -20,6 +20,7 @@ import subprocess
 import sys
 import time
 import local_settings
+from scandump_reader import Scandump_v2
 
 from dcc import DccRegDump, DccSramDump
 from pmic import PmicRegDump
@@ -137,6 +138,7 @@ class DebugImage_v2():
         if client_id == client.MSM_DUMP_DATA_SCANDUMP:
             output = os.path.join(ram_dump.outdir, scandump_file_prefix)
             input = os.path.join(ram_dump.outdir, "core.bin")
+            core_num = client_id & 0xF
         elif client_id >= client.MSM_DUMP_DATA_SCANDUMP_PER_CPU:
             core_num = client_id & 0xF
             output = '{0}_{1:x}'.format(scandump_file_prefix, core_num)
@@ -154,6 +156,11 @@ class DebugImage_v2():
             header_bin.write(struct.pack("<B", val))
         header_bin.close()
         subprocess.call('python {0} -d {1} -o {2} -f {3}'.format(scan_wrapper_path, input, output, arch))
+        sv2 = Scandump_v2(core_num,ram_dump,version)
+        reg_info = sv2.prepare_dict()
+        if reg_info is not None:
+            sv2.dump_core_pc(ram_dump)
+            sv2.dump_all_regs(ram_dump)
         return
 
     def parse_cpu_ctx(self, version, start, end, client_id, ram_dump):

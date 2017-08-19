@@ -29,6 +29,7 @@ from mmu import Armv7MMU, Armv7LPAEMMU, Armv8MMU
 import parser_util
 import minidump_util
 from importlib import import_module
+import module_table
 
 FP = 11
 SP = 13
@@ -199,12 +200,7 @@ class RamDump():
             mask = (self.ramdump.thread_size) - 1
             high = (low + mask) & (~mask)
 
-            # Ignore NON HLOS addresses and return from the function without
-            # unwinding the frame pointer. HLOS addresses are expected to be
-            # greater than or equal to page_offset. NON HLOS addresses have 1-1
-            # virtual to physical mapping and may not have physical addresses
-            # equal to or greater than page_offset anytime soon.
-            if (fp < low or fp > high or fp & 0xf or fp < self.ramdump.page_offset):
+            if (fp < low or fp > high or fp & 0xf):
                 return
 
             frame.sp = fp + 0x10
@@ -551,6 +547,8 @@ class RamDump():
                 print "Oops, missing required library for minidump. Check README"
                 sys.exit(1)
         self.ram_addr = options.ram_addr
+        self.module_table = module_table.module_table_class()
+        self.module_table.setup_sym_path(options.sym_path)
 
         if options.ram_addr is not None:
             # TODO sanity check to make sure the memory regions don't overlap
@@ -713,6 +711,9 @@ class RamDump():
                 print_out_str('!!! Some features may be disabled!')
 
         self.unwind = self.Unwinder(self)
+        if self.module_table.sym_path_exists():
+            self.setup_module_symbols()
+            self.gdbmi.setup_module_table(self.module_table)
 
     def __del__(self):
         self.gdbmi.close()
@@ -1029,8 +1030,18 @@ class RamDump():
                     'task.config /opt/t32/demo/arm/kernel/linux/linux.t32\n'.encode('ascii', 'ignore'))
                 startup_script.write(
                     'menu.reprogram /opt/t32/demo/arm/kernel/linux/linux.men\n'.encode('ascii', 'ignore'))
+
+        for mod_tbl_ent in self.module_table.module_table:
+            mod_sym_path = mod_tbl_ent.get_sym_path()
+            if mod_sym_path != '':
+                where = os.path.abspath(mod_sym_path)
+                where += ' 0x{0:x}'.format(mod_tbl_ent.module_offset)
+                dloadelf = 'data.load.elf {} /nocode /noclear\n'.format(where)
+                startup_script.write(dloadelf.encode('ascii', 'ignore'))
+
         if not self.minidump:
             startup_script.write('task.dtask\n'.encode('ascii', 'ignore'))
+
         startup_script.write(
             'v.v  %ASCII %STRING linux_banner\n'.encode('ascii', 'ignore'))
         if os.path.exists(out_path + '/regs_panic.cmm'):
@@ -1221,6 +1232,54 @@ class RamDump():
                                          s[2].rstrip()))
         stream.close()
 
+    def retrieve_modules(self):
+        mod_list = self.address_of('modules')
+        next_offset = self.field_offset('struct list_head', 'next')
+        list_offset = self.field_offset('struct module', 'list')
+        name_offset = self.field_offset('struct module', 'name')
+
+        if self.kernel_version > (4, 4, 0):
+            module_core_offset = self.field_offset('struct module', 'core_layout.base')
+        else:
+            module_core_offset = self.field_offset('struct module', 'module_core')
+
+        next_list_ent = self.read_pointer(mod_list + next_offset)
+        while next_list_ent != mod_list:
+            mod_tbl_ent = module_table.module_table_entry()
+            module = next_list_ent - list_offset
+            name_ptr = module + name_offset
+            mod_tbl_ent.name = self.read_cstring(name_ptr)
+            mod_tbl_ent.module_offset = self.read_pointer(module + module_core_offset)
+            self.module_table.add_entry(mod_tbl_ent)
+            next_list_ent = self.read_pointer(next_list_ent + next_offset)
+
+    def parse_symbols_of_one_module(self, mod_tbl_ent, sym_path):
+        if not mod_tbl_ent.set_sym_path( os.path.join(sym_path, mod_tbl_ent.name + '.ko') ):
+            return
+        stream = os.popen(self.nm_path + ' -n ' + mod_tbl_ent.get_sym_path())
+        symbols = stream.readlines()
+
+        for line in symbols:
+            s = line.split(' ')
+            if len(s) == 3:
+                mod_tbl_ent.sym_lookup_table.append( ( int(s[0], 16) + mod_tbl_ent.module_offset, s[2].rstrip() ) )
+        stream.close()
+
+    def parse_module_symbols(self):
+        for mod_tbl_ent in self.module_table.module_table:
+            self.parse_symbols_of_one_module(mod_tbl_ent, self.module_table.sym_path)
+
+    def add_symbols_to_global_lookup_table(self):
+        for mod_tbl_ent in self.module_table.module_table:
+            for sym in mod_tbl_ent.sym_lookup_table:
+                self.lookup_table.append(sym)
+        self.lookup_table.sort()
+
+    def setup_module_symbols(self):
+        self.retrieve_modules()
+        self.parse_module_symbols();
+        self.add_symbols_to_global_lookup_table()
+
     def address_of(self, symbol):
         """Returns the address of a symbol.
 
@@ -1301,11 +1360,6 @@ class RamDump():
     def unwind_lookup(self, addr, symbol_size=0):
         if (addr is None):
             return ('(Invalid address)', 0x0)
-
-        # modules are not supported so just print out an address
-        # instead of a confusing symbol
-        if (addr < self.modules_end):
-            return ('(No symbol for address {0:x})'.format(addr), 0x0)
 
         low = 0
         high = len(self.lookup_table)
