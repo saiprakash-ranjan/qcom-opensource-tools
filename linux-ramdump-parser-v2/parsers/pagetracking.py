@@ -55,6 +55,12 @@ class PageTracking(RamParser):
                                 'struct page_ext', 'nr_entries')
             mem_section_size = self.ramdump.sizeof("struct mem_section")
             page_ext_size = self.ramdump.sizeof("struct page_ext")
+            if self.ramdump.kernel_version >= (4,9,0):
+                page_owner_size = self.ramdump.sizeof("struct page_owner")
+                page_ext_size = page_ext_size + page_owner_size
+                page_owner_ops_offset = self.ramdump.read_structure_field(
+                    'page_owner_ops', 'struct page_ext_operations', 'offset')
+
 
         out_tracking = self.ramdump.open_file('page_tracking.txt')
         out_frequency = self.ramdump.open_file('page_frequency.txt')
@@ -85,8 +91,12 @@ class PageTracking(RamParser):
                 page_ext = self.ramdump.read_word(
                             mem_section_0_offset + page_ext_offset)
                 temp_page_ext = page_ext + (pfn * page_ext_size)
-
-                order = self.ramdump.read_structure_field(
+                if self.ramdump.kernel_version >= (4,9,0):
+                    temp_page_ext = temp_page_ext + page_owner_ops_offset
+                    order = self.ramdump.read_structure_field(
+                                temp_page_ext, 'struct page_owner', 'order')
+                else:
+                    order = self.ramdump.read_structure_field(
                             temp_page_ext, 'struct page_ext', 'order')
                 if not self.ramdump.is_config_defined('CONFIG_STACKDEPOT'):
 
@@ -95,8 +105,13 @@ class PageTracking(RamParser):
                     struct_holding_trace_entries = temp_page_ext
 
                 else:
-                    handle = self.ramdump.read_structure_field(
+                    if self.ramdump.kernel_version >= (4,9,0):
+                        handle = self.ramdump.read_structure_field(
+                            temp_page_ext, 'struct page_owner', 'handle')
+                    else:
+                        handle = self.ramdump.read_structure_field(
                             temp_page_ext, 'struct page_ext', 'handle')
+
                     slabindex     = handle & 0x1fffff
                     handle_offset = (handle  >> 0x15) & 0x3ff
                     handle_offset = handle_offset << 4

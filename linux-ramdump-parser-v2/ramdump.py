@@ -200,12 +200,7 @@ class RamDump():
             mask = (self.ramdump.thread_size) - 1
             high = (low + mask) & (~mask)
 
-            # Ignore NON HLOS addresses and return from the function without
-            # unwinding the frame pointer. HLOS addresses are expected to be
-            # greater than or equal to page_offset. NON HLOS addresses have 1-1
-            # virtual to physical mapping and may not have physical addresses
-            # equal to or greater than page_offset anytime soon.
-            if (fp < low or fp > high or fp & 0xf or fp < self.ramdump.page_offset):
+            if (fp < low or fp > high or fp & 0xf):
                 return
 
             frame.sp = fp + 0x10
@@ -836,7 +831,18 @@ class RamDump():
 
             print_out_str('Linux Banner: ' + b.rstrip())
             print_out_str('version = {0}'.format(self.version))
-            return True
+            vm_v = self.gdbmi.get_value_of_string('linux_banner')
+            if vm_v is None:
+                print_out_str('!!! Could not read banner address from vmlinux!')
+                return False
+            if str(vm_v) in str(b):
+                print_out_str("Linux banner from vmlinux = %s" % vm_v)
+                print_out_str("Linux banner from dump = %s" % b)
+                return True
+            else:
+                print_out_str("Expected Linux banner = %s" % vm_v)
+                print_out_str("But Linux banner got = %s" % b)
+                return False
         else:
             print_out_str('!!! Could not lookup banner address')
             return False
