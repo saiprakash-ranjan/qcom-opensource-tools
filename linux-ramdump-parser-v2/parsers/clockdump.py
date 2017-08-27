@@ -29,12 +29,16 @@ class ClockDumps(RamParser):
             self.output_file.write("--------------------------------------------\n")
             self.output_file.write("{0} from of_clk_providers list\n".format(title))
             self.output_file.write("--------------------------------------------\n")
-            self.output_file.write("  {0:40} {1:21} {2:25} {3:10} {4:40}\n".format('CLOCK NAME', 'COUNT/PREPARE_COUNT', 'RATE', 'CUR_LEVEL', 'CLOCK STRUCTURE'))
+            str = "  {0:40} {1:21} {2:25} {3:20} {4:45} {5:40}\n"
+            self.output_file.write(str.format('CLOCK NAME',
+                                            'COUNT/PREPARE_COUNT',
+                                            'RATE', 'CUR_LEVEL',
+                                            'CLOCK STRUCTURE', 'CLOCK_OPS'))
         elif type == 'CLOCKS':
             self.output_file.write("----------------------------------\n")
             self.output_file.write("{0} from clocks list\n".format(title))
             self.output_file.write("----------------------------------\n")
-            self.output_file.write("  {0:40} {1:25} {2:20} {3:21} {4:25} {5:10} {6:40}\n".format('CLOCK NAME', 'DEVID', 'CONID', 'COUNT/PREPARE_COUNT', 'RATE', 'CUR_LEVEL', 'CLOCK STRUCTURE'))
+            self.output_file.write("  {0:40} {1:25} {2:20} {3:21} {4:25} {5:20} {6:40}\n".format('CLOCK NAME', 'DEVID', 'CONID', 'COUNT/PREPARE_COUNT', 'RATE', 'CUR_LEVEL', 'CLOCK STRUCTURE'))
 
     def printclocks(self, type):
         if len(self.disabled_clocks):
@@ -157,6 +161,42 @@ class ClockDumps(RamParser):
             counter = counter + 1
             table = table + self.ramdump.sizeof('struct clk_lookup')
 
+    def dump_clock(self,clk_core,clk_name):
+        offset_vdd_cur_level = self.ramdump.field_offset(
+                                'struct clk_vdd_class', 'cur_level')
+        clk_prepare_count = self.ramdump.read_structure_field(
+                                clk_core, 'struct clk_core', 'prepare_count')
+        clk_enable_count = self.ramdump.read_structure_field(
+                                clk_core, 'struct clk_core', 'enable_count')
+        clk_rate = self.ramdump.read_structure_field(
+                                    clk_core, 'struct clk_core', 'rate')
+        clk_vdd_class_addr = self.ramdump.read_structure_field(
+                                clk_core,'struct clk_core','vdd_class')
+        clk_ops = self.ramdump.read_structure_field(
+                                clk_core,'struct clk_core','ops')
+        clk_ops = self.ramdump.unwind_lookup(clk_ops)
+        vdd_class = self.ramdump.read_word(clk_vdd_class_addr)
+        cur_level = 0
+        if vdd_class != 0 and vdd_class is not None:
+            cur_level_address = (vdd_class + offset_vdd_cur_level)
+            cur_level = self.ramdump.read_word(cur_level_address, True)
+        formatStr = "{0:40} {1:<2}/ {2:<17} {3:<25} {4:<20} " \
+                    "v.v (struct clk_core *)0x{5:<20x} {6:<40}\n"
+        output = formatStr.format(
+                                clk_name,
+                                clk_enable_count,
+                                clk_prepare_count,
+                                clk_rate, cur_level,
+                                clk_core,clk_ops[0])
+
+        if clk_enable_count > 0:
+            self.enabled_clocks.append(output)
+        elif clk_prepare_count > 0:
+            self.prepared_clocks.append(output)
+        else:
+            self.disabled_clocks.append(output)
+
+
     def print_clk_onecell_data(self, data):
         offset_clk_onecell_data_clks = (
                 self.ramdump.field_offset('struct clk_onecell_data', 'clks'))
@@ -164,6 +204,8 @@ class ClockDumps(RamParser):
                             self.ramdump.field_offset(
                                 'struct clk_onecell_data', 'clk_num'))
         clks = self.ramdump.read_word(data + offset_clk_onecell_data_clks)
+        if (clks == 0 or clks == None):
+            return
         size = self.ramdump.read_int(data + offset_clk_onecell_data_clknum)
         sizeof_clk_pointer = self.ramdump.sizeof('struct clk *')
         offset_vdd_cur_level = self.ramdump.field_offset(
@@ -183,34 +225,40 @@ class ClockDumps(RamParser):
             clk_name_addr = self.ramdump.read_structure_field(
                                         clk_core, 'struct clk_core', 'name')
             clk_name = self.ramdump.read_cstring(clk_name_addr, 48)
-            clk_prepare_count = self.ramdump.read_structure_field(
-                                clk_core, 'struct clk_core', 'prepare_count')
-            clk_enable_count = self.ramdump.read_structure_field(
-                                clk_core, 'struct clk_core', 'enable_count')
-            clk_rate = self.ramdump.read_structure_field(
-                                    clk_core, 'struct clk_core', 'rate')
-            clk_vdd_class_addr = (
-                    self.ramdump.read_structure_field(
-                        clk_core, 'struct clk_core', 'vdd_class'))
-            vdd_class = self.ramdump.read_word(clk_vdd_class_addr)
-            cur_level = 0
-            if vdd_class != 0 and vdd_class is not None:
-                cur_level_address = (vdd_class + offset_vdd_cur_level)
-                cur_level = self.ramdump.read_word(cur_level_address, True)
-            formatStr  = "{0:40} {1:<2}/ {2:<17} {3:<25} {4:<10} v.v (struct clk_core *)0x{5:<20x}\n"
-            output = formatStr.format(
-                                    clk_name,
-                                    clk_enable_count,
-                                    clk_prepare_count,
-                                    clk_rate, cur_level,
-                                    clk_core)
-            if clk_enable_count > 0:
-                self.enabled_clocks.append(output)
-            elif clk_prepare_count > 0:
-                self.prepared_clocks.append(output)
-            else:
-                self.disabled_clocks.append(output)
+            if (clk_name == 0 or clk_name == None):
+                break
+            self.dump_clock(clk_core,clk_name)
             counter = counter + 1
+
+    def print_clk_qcom_cc_data(self, data, node):
+        getfunchw = self.ramdump.read_structure_field(
+                            node,'struct of_clk_provider','get_hw')
+        getfunchw = self.ramdump.unwind_lookup(getfunchw)
+
+        if "qcom_cc_clk_hw_get" in getfunchw:
+            size = self.ramdump.read_structure_field(
+                            data,'struct qcom_cc','num_rclks')
+            clks = self.ramdump.read_structure_field(
+                            data,'struct qcom_cc','rclks')
+            sizeof_clk_regmap = self.ramdump.sizeof('struct clk_regmap *')
+            offset_vdd_cur_level = self.ramdump.field_offset(
+                'struct clk_vdd_class', 'cur_level')
+            counter = 0
+            while counter < size:
+                clk = self.ramdump.read_word(clks +
+                                             (sizeof_clk_regmap * counter))
+                clk_core = self.ramdump.read_structure_field(
+                                    clk,'struct clk_regmap','hw.core')
+                if clk_core == 0 or clk_core is None:
+                    counter = counter + 1
+                    continue
+                clk_name_addr = self.ramdump.read_structure_field(
+                                    clk_core, 'struct clk_core', 'name')
+                clk_name = self.ramdump.read_cstring(clk_name_addr, 48)
+                if (clk_name == 0 or clk_name == None):
+                    break
+                self.dump_clock(clk_core,clk_name)
+                counter = counter + 1
 
     def clk_providers_walker(self, node):
         if node == self.head:
@@ -224,11 +272,16 @@ class ClockDumps(RamParser):
         else:
             self.print_clk_onecell_data(data)
 
+        getfunc = self.ramdump.read_structure_field(
+                        node,'struct of_clk_provider','get')
+        if getfunc == 0:
+            self.print_clk_qcom_cc_data(data,node)
+
     def parse(self):
         self.output_file = self.ramdump.open_file('ClockDumps.txt')
-
-        self.get_clocks()
-        self.printclocks('CLOCKS')
+        if (self.ramdump.kernel_version < (4, 9, 0)):
+            self.get_clocks()
+            self.printclocks('CLOCKS')
         self.get_clk_providers()
         self.printclocks('CLK_PROVIDERS')
 
