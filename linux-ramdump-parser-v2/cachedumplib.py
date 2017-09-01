@@ -654,6 +654,30 @@ lookuptable[("sdm845", 0x141, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
 lookuptable[("sdm845", 0x142, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
 lookuptable[("sdm845", 0x143, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
 
+# "sdm670"
+lookuptable[("sdm670", 0x80, 0x14)] = L1_DCache_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x81, 0x14)] = L1_DCache_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x82, 0x14)] = L1_DCache_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x83, 0x14)] = L1_DCache_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x84, 0x14)] = L1_DCache_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x85, 0x14)] = L1_DCache_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x86, 0x14)] = L1_DCache_KRYO3XX_GOLD()
+lookuptable[("sdm670", 0x87, 0x14)] = L1_DCache_KRYO3XX_GOLD()
+
+
+lookuptable[("sdm670", 0x60, 0x14)] = L1_ICache_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x61, 0x14)] = L1_ICache_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x62, 0x14)] = L1_ICache_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x63, 0x14)] = L1_ICache_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x64, 0x14)] = L1_ICache_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x65, 0x14)] = L1_ICache_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x66, 0x14)] = L1_ICache_KRYO3XX_GOLD()
+lookuptable[("sdm670", 0x67, 0x14)] = L1_ICache_KRYO3XX_GOLD()
+
+lookuptable[("sdm670", 0x140, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sdm670", 0x141, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+
+
 # "sdm660"
 lookuptable[("660", 0x80, 0x14)] = L1_DCache_KRYO2XX_SILVER()
 lookuptable[("660", 0x81, 0x14)] = L1_DCache_KRYO2XX_SILVER()
