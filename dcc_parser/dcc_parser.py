@@ -226,7 +226,7 @@ if __name__ == '__main__':
                       help='chip version')
     parser.add_option('--v2', dest='version', action="store_const", const='2',
                       help='DCC driver version 2')
-    parser.add_option('--config-offset', dest='config_offset', type=int,
+    parser.add_option('--config-offset', dest='config_offset',
                       help='Start offset for DCC configuration')
 
     (options, args) = parser.parse_args()
