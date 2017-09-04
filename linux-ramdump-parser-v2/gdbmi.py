@@ -302,6 +302,10 @@ class GdbMI(object):
         match = re.search(r'^[$]\d+ = \\"(.*)(\\\\n\\")', result.lines[0])
         if match:
             return match.group(1)
+        else:
+            match = re.search(r'^[$]\d+ = 0x[0-9a-fA-F]+ .* \\"(.*)(\\\\n\\")', result.lines[0])
+            if match:
+                return match.group(1)
         return None
 
 
