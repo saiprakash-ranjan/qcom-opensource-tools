@@ -27,6 +27,8 @@ class lpm(RamParser):
     def get_bits(self):
         bits_addr = self.ramdump.address_of('cpu_possible_bits')
         if bits_addr is None:
+            bits_addr = self.ramdump.address_of('__cpu_possible_mask')
+            if bits_addr is None:
                 self.output.append("NOTE: 'cpu_possible_bits' not found")
                 return
 
@@ -39,6 +41,8 @@ class lpm(RamParser):
 
         bits_addr = self.ramdump.address_of('cpu_online_bits')
         if bits_addr is None:
+            bits_addr = self.ramdump.address_of('__cpu_online_mask')
+            if bits_addr is None:
                 self.output.append("NOTE: 'cpu_online_bits' not found")
                 return
 
