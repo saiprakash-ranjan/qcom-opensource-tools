@@ -831,7 +831,18 @@ class RamDump():
 
             print_out_str('Linux Banner: ' + b.rstrip())
             print_out_str('version = {0}'.format(self.version))
-            return True
+            vm_v = self.gdbmi.get_value_of_string('linux_banner')
+            if vm_v is None:
+                print_out_str('!!! Could not read banner address from vmlinux!')
+                return False
+            if str(vm_v) in str(b):
+                print_out_str("Linux banner from vmlinux = %s" % vm_v)
+                print_out_str("Linux banner from dump = %s" % b)
+                return True
+            else:
+                print_out_str("Expected Linux banner = %s" % vm_v)
+                print_out_str("But Linux banner got = %s" % b)
+                return False
         else:
             print_out_str('!!! Could not lookup banner address')
             return False

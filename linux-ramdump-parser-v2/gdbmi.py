@@ -291,6 +291,24 @@ class GdbMI(object):
         result = self._run_for_one('print /d {0}'.format(symbol))
         return int(result.split(' ')[-1], 10)
 
+
+    def get_value_of_string(self, symbol):
+        """Returns the value of a symbol (as a string)"""
+        cmd = 'print /s {0}'.format(symbol)
+        result = self._run(cmd)
+        if len(result.lines) == 0:
+            raise GdbMIException(
+                            cmd, '\n'.join(result.lines + result.oob_lines))
+        match = re.search(r'^[$]\d+ = \\"(.*)(\\\\n\\")', result.lines[0])
+        if match:
+            return match.group(1)
+        else:
+            match = re.search(r'^[$]\d+ = 0x[0-9a-fA-F]+ .* \\"(.*)(\\\\n\\")', result.lines[0])
+            if match:
+                return match.group(1)
+        return None
+
+
 if __name__ == '__main__':
     if len(sys.argv) != 3:
         print('Usage: gdbmi.py gdb_path elf')
