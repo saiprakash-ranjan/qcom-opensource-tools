@@ -466,8 +466,11 @@ class DebugImage_v2():
 
     def parse_dcc(self, ram_dump):
         out_dir = ram_dump.outdir
-        bin_dir = ram_dump.ram_addr
-        bin_dir="\\".join(bin_dir[0][0].split('\\')[:-1])
+        if ram_dump.ram_addr is None:
+            bin_dir = ram_dump.autodump
+        else:
+            bin_dir = ram_dump.ram_addr
+            bin_dir="\\".join(bin_dir[0][0].split('\\')[:-1])
         dcc_parser_path = os.path.join(os.path.dirname(__file__), '..', 'dcc_parser', 'dcc_parser.py')
         if dcc_parser_path is None:
             print_out_str("!!! Incorrect path for DCC specified.")

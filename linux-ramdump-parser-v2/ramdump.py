@@ -535,7 +535,10 @@ class RamDump():
         self.minidump = options.minidump
         self.elffile = None
         self.ram_elf_file = None
-
+        self.ram_addr = options.ram_addr
+        self.autodump = options.autodump
+        self.module_table = module_table.module_table_class()
+        self.module_table.setup_sym_path(options.sym_path)
         if self.minidump:
             try:
                 mod = import_module('elftools.elf.elffile')
@@ -546,9 +549,6 @@ class RamDump():
             except ImportError:
                 print "Oops, missing required library for minidump. Check README"
                 sys.exit(1)
-        self.ram_addr = options.ram_addr
-        self.module_table = module_table.module_table_class()
-        self.module_table.setup_sym_path(options.sym_path)
 
         if options.ram_addr is not None:
             # TODO sanity check to make sure the memory regions don't overlap
