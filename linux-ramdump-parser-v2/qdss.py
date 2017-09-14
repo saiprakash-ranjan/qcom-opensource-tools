@@ -347,10 +347,7 @@ class QDSSDump():
                     start = dbaddr
                 else:
                     break
-
-                for i in it:
-                    val = ram_dump.read_byte(i, False)
-                    tmc_etr.write(struct.pack("<B",val))
+                tmc_etr.write(ram_dump.read_physical(it[0], len(it)))
         else:
             while continue_looping:
                 entry = ram_dump.read_u32(start, False)
@@ -366,10 +363,7 @@ class QDSSDump():
                     continue_looping = False
                 else:
                     break
-
-                for i in it:
-                    val = ram_dump.read_byte(i, False)
-                    tmc_etr.write(struct.pack("<B",val))
+                tmc_etr.write(ram_dump.read_physical(it[0], len(it)))
 
     def save_etr_bin(self, ram_dump):
         tmc_etr = ram_dump.open_file('tmc-etr.bin')
@@ -416,13 +410,13 @@ class QDSSDump():
             else:
                 print_out_str('Contiguous memory type was selected for TMC ETR')
                 if (sts & 0x1) == 1:
-                    it = itertools.chain(range(rwpval, dbaddr+rsz), range(dbaddr, rwpval))
+                    it1 = range(rwpval, dbaddr+rsz)
+                    it2 = range(dbaddr, rwpval)
+                    tmc_etr.write(ram_dump.read_physical(it1[0], len(it)))
+                    tmc_etr.write(ram_dump.read_physical(it2[0], len(it)))
                 else:
                     it = range(dbaddr, dbaddr+rsz)
-
-                for i in it:
-                    val = ram_dump.read_byte(i, False)
-                    tmc_etr.write(struct.pack("<B",val))
+                    tmc_etr.write(ram_dump.read_physical(it[0], len(it)))
         else:
             print_out_str ('!!! ETR was not the current sink!')
 
