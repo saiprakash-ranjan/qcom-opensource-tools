@@ -149,16 +149,18 @@ class Scandump_v2():
         alt_pc_1 = None
         alt_pc_2 = None
         pc_val = ""
-
+        match_flag = False
         if os.path.exists(output):
             fd = open(output, "r")
             for line in fd:
+                match_flag = False
                 matchObj = re.match('^REGISTER.SET ([xse].*[0-9]+)\s(0x[0-9a-f]{0,})', line, re.M | re.I)
                 if matchObj:
                     regVal = matchObj.group(2)
                     if regVal == "0x":
                         regVal = "0x0000000000000000"
                     self.regs[(matchObj.group(1)).lower()] = int(regVal, 16)
+                    match_flag = True
                 else:
                     matchObj = re.match('^REGISTER.SET (PC)\s(0x[0-9a-f]{0,})', line, re.M | re.I)
                     if matchObj:
@@ -177,6 +179,13 @@ class Scandump_v2():
                         alt_pc_2 = matchObj_altpc.group(2)
                         if alt_pc_2 == "0x":
                             alt_pc_2 = "0x0000000000000000"
+                matchObj = re.match('^REGISTER.SET ([xse].*[0-9]+)\s([0-9a-f])', line, re.M | re.I)
+                if matchObj and match_flag == False:
+                    regVal = matchObj.group(2)
+                    if regVal == "0":
+                        regVal = "0x0000000000000000"
+                    self.regs[(matchObj.group(1)).lower()] = int(regVal, 16)
+
 
             result_32 = self.alt_pc_selection(pc_val)
             if result_32:

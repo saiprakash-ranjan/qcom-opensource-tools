@@ -26,10 +26,14 @@ class IrqParse(RamParser):
         h_irq_offset = ram_dump.field_offset('struct irq_desc', 'handle_irq')
         irq_num_offset = ram_dump.field_offset('struct irq_data', 'irq')
         hwirq_num_offset = ram_dump.field_offset('struct irq_data', 'hwirq')
-        affinity_offset = ram_dump.field_offset(
-            'struct irq_common_data', 'affinity')
-        irq_common_data_offset = ram_dump.field_offset(
-            'struct irq_desc', 'irq_common_data')
+        if ram_dump.kernel_version >= (4,4,0) :
+            affinity_offset = ram_dump.field_offset(
+                'struct irq_common_data', 'affinity')
+            irq_common_data_offset = ram_dump.field_offset(
+                'struct irq_desc', 'irq_common_data')
+        else:
+            affinity_offset = ram_dump.field_offset(
+                'struct irq_data', 'affinity')
         irq_data_offset = ram_dump.field_offset('struct irq_desc', 'irq_data')
         irq_count_offset = ram_dump.field_offset(
             'struct irq_desc', 'irq_count')
@@ -51,8 +55,12 @@ class IrqParse(RamParser):
         for i in range(0, irq_desc_size, irq_desc_entry_size):
             irqnum = ram_dump.read_word(irq_desc + i + irq_num_offset)
             hwirq = ram_dump.read_word(irq_desc + i + hwirq_num_offset)
-            affinity = ram_dump.read_int(
-                irq_desc + irq_common_data_offset + affinity_offset)
+            if ram_dump.kernel_version >= (4,4,0):
+                affinity = ram_dump.read_int(
+                    irq_desc + irq_common_data_offset + affinity_offset)
+            else:
+                affinity = ram_dump.read_int(
+                    irq_desc + affinity_offset)
             irqcount = ram_dump.read_word(irq_desc + i + irq_count_offset)
             action = ram_dump.read_word(irq_desc + i + irq_action_offset)
             kstat_irqs_addr = ram_dump.read_word(
@@ -173,10 +181,14 @@ class IrqParse(RamParser):
         h_irq_offset = ram_dump.field_offset('struct irq_desc', 'handle_irq')
         irq_num_offset = ram_dump.field_offset('struct irq_data', 'irq')
         hwirq_num_offset = ram_dump.field_offset('struct irq_data', 'hwirq')
-        affinity_offset = ram_dump.field_offset(
-            'struct irq_common_data', 'affinity')
-        irq_common_data_offset = ram_dump.field_offset(
-            'struct irq_desc', 'irq_common_data')
+        if ram_dump.kernel_version >= (4,4,0):
+            affinity_offset = ram_dump.field_offset(
+                'struct irq_common_data', 'affinity')
+            irq_common_data_offset = ram_dump.field_offset(
+                'struct irq_desc', 'irq_common_data')
+        else:
+            affinity_offset = ram_dump.field_offset(
+                'struct irq_data', 'affinity')
         irq_data_offset = ram_dump.field_offset('struct irq_desc', 'irq_data')
         irq_count_offset = ram_dump.field_offset(
             'struct irq_desc', 'irq_count')
@@ -217,8 +229,12 @@ class IrqParse(RamParser):
             irqnum = ram_dump.read_int(irq_desc + irq_data_offset + irq_num_offset)
             hwirq = ram_dump.read_int(
                 irq_desc + irq_data_offset + hwirq_num_offset)
-            affinity = ram_dump.read_int(
-                irq_desc + irq_common_data_offset + affinity_offset)
+            if ram_dump.kernel_version >= (4,4,0):
+                affinity = ram_dump.read_int(
+                    irq_desc + irq_common_data_offset + affinity_offset)
+            else:
+                affinity = ram_dump.read_int(
+                        irq_desc + affinity_offset)
             irqcount = ram_dump.read_int(irq_desc + irq_count_offset)
             action = ram_dump.read_word(irq_desc + irq_action_offset)
             kstat_irqs_addr = ram_dump.read_word(irq_desc + kstat_irqs_offset)
