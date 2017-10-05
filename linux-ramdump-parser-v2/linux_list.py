@@ -1,4 +1,4 @@
-# Copyright (c) 2013-2014, 2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2013-2014, 2016-2017, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -78,7 +78,7 @@ class ListWalker(object):
             return
 
         while True:
-            if node_addr == 0:
+            if node_addr == 0 or node_addr == None :
                 break
 
             funcargs = [node_addr - self.list_elem_offset] + list(args)
