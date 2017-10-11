@@ -723,7 +723,9 @@ boards.append(Board630(socid=327))
 
 boards.append(BoardSDM845(socid=321))
 boards.append(BoardSDX20(socid=333))
+
 boards.append(BoardSDM670(socid=336))
+boards.append(BoardSDM670(socid=337))
 
 def get_supported_boards():
     """ Called by other part of the code to get a list of boards """
