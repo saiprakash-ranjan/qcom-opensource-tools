@@ -277,7 +277,7 @@ class DebugImage_v2():
         try:
             cache_type.parse(start, end, ramdump, outfile)
         except NotImplementedError:
-            print_out_str('System cache dumping not supported'
+            print_out_str('System cache dumping not supported %s'
                           % client_name)
         except:
             print_out_str('!!! Unhandled exception while running {0}'.format(client_name))
