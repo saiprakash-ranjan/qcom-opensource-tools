@@ -34,7 +34,6 @@ from sysregs import SysRegDump
 
 MEMDUMPV2_MAGIC = 0x42445953
 MAX_NUM_ENTRIES = 0x150
-TRACE_EVENT_FL_TRACEPOINT = 0x40
 
 class client(object):
     MSM_DUMP_DATA_CPU_CTX = 0x00
@@ -330,7 +329,10 @@ class DebugImage_v2():
         class_offset = ram_dump.field_offset(self.event_call, 'class')
         flags_offset = ram_dump.field_offset(self.event_call, 'flags')
         flags = ram_dump.read_word(ftrace_list + flags_offset)
-
+        if ram_dump.kernel_version >= (4, 9):
+            TRACE_EVENT_FL_TRACEPOINT = 0x20
+        else:
+            TRACE_EVENT_FL_TRACEPOINT = 0x40
         if (ram_dump.kernel_version >= (3, 18) and (flags & TRACE_EVENT_FL_TRACEPOINT)):
             tp_offset = ram_dump.field_offset(self.event_call, 'tp')
             tp_name_offset = ram_dump.field_offset('struct tracepoint', 'name')
