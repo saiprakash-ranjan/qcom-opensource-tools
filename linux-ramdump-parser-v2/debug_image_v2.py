@@ -277,7 +277,7 @@ class DebugImage_v2():
         try:
             cache_type.parse(start, end, ramdump, outfile)
         except NotImplementedError:
-            print_out_str('System cache dumping not supported'
+            print_out_str('System cache dumping not supported %s'
                           % client_name)
         except:
             print_out_str('!!! Unhandled exception while running {0}'.format(client_name))
@@ -424,7 +424,9 @@ class DebugImage_v2():
         qtf_dir = os.path.join(out_dir, 'qtf')
         workspace = os.path.join(qtf_dir, 'qtf.workspace')
         qtf_out = os.path.join(out_dir, 'qtf.txt')
-        chipset = 'msm' + ram_dump.hw_id
+        chipset = ram_dump.hw_id
+        if "sdm" not in ram_dump.hw_id.lower():
+            chipset = "msm" + ram_dump.hw_id
         hlos = 'LA'
 
         #Temp change to handle descripancy between tools usage
