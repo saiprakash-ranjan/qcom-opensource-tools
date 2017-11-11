@@ -1634,7 +1634,7 @@ class RamDump():
         return cpu
 
     def thread_saved_field_common_32(self, task, reg_offset):
-        thread_info = self.read_word(self.get_thread_info_addr(task))
+        thread_info = self.get_thread_info_addr(task)
         cpu_context_offset = self.field_offset('struct thread_info', 'cpu_context')
         val = self.read_word(thread_info + cpu_context_offset + reg_offset)
         return val
