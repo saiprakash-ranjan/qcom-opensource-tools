@@ -77,6 +77,20 @@ class PageTracking(RamParser):
         out_frequency = self.ramdump.open_file('page_frequency.txt')
         sorted_pages = {}
 
+        '''
+        Following based upon definition in include/linux/mmzone.h
+
+        #ifndef CONFIG_FORCE_MAX_ZONEORDER
+        #define MAX_ORDER 11
+        #else
+        #define MAX_ORDER CONFIG_FORCE_MAX_ZONEORDER
+        #endif
+        '''
+        try:
+            max_order = int(self.ramdump.get_config_val("CONFIG_FORCE_MAX_ZONEORDER"))
+        except:
+            max_order = 11
+
         for pfn in for_each_pfn(self.ramdump):
             page = pfn_to_page(self.ramdump, pfn)
             order = 0
@@ -150,6 +164,11 @@ class PageTracking(RamParser):
 
 
             if nr_trace_entries <= 0 or nr_trace_entries > 16:
+                continue
+
+            if order >= max_order:
+                out_tracking.write('PFN 0x{:x} page 0x{:x} skip as order 0x{:x}\n'.format(
+                    pfn, page, order))
                 continue
 
             out_tracking.write('PFN 0x{:x}-0x{:x} page 0x{:x}\n'.format(
