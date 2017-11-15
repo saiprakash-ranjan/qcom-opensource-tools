@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2015,2017 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -49,20 +49,19 @@ class Vmalloc(RamParser):
         if addr is None:
            return
 
-        vmalloc_str = '{0:x}-{1:x} {2:x}'.format(addr, addr + size, size)
+        vmalloc_str = 'v.v (struct vmap_area)0x{0:16x} '.format(vm)
+        vmalloc_str = vmalloc_str + '{0:18x}-{1:x} {2:8x}'\
+            .format(addr, addr + size, size)
+
+        vmalloc_str = vmalloc_str + ' {0:10x} '.format(phys_addr)
 
         if (caller != 0):
             a = self.ramdump.unwind_lookup(caller)
             if a is not None:
                 symname, offset = a
+                sym = symname + '0x' + str(hex(offset))
                 vmalloc_str = vmalloc_str + \
-                    ' {0}+0x{1:x}'.format(symname, offset)
-
-        if (nr_pages != 0):
-            vmalloc_str = vmalloc_str + ' pages={0}'.format(nr_pages)
-
-        if (phys_addr != 0):
-            vmalloc_str = vmalloc_str + ' phys={0:x}'.format(phys_addr)
+                    ' {0:46}'.format(sym)
 
         if (flags & VM_IOREMAP) != 0:
             vmalloc_str = vmalloc_str + ' ioremap'
@@ -79,6 +78,9 @@ class Vmalloc(RamParser):
         if (flags & VM_VPAGES) != 0:
             vmalloc_str = vmalloc_str + ' vpages'
 
+        if (nr_pages != 0):
+            vmalloc_str = vmalloc_str + ' pages={0}'.format(nr_pages)
+
         vmalloc_str = vmalloc_str + '\n'
         self.vmalloc_out.write(vmalloc_str)
 
@@ -89,7 +91,7 @@ class Vmalloc(RamParser):
         self.print_vm(vm)
 
 
-    def print_vmalloc_info_3_10(self, out_path):
+    def print_vmalloc_info_v2(self, out_path):
         vmalloc_out = self.ramdump.open_file('vmalloc.txt')
 
         next_offset = self.ramdump.field_offset('struct vmap_area', 'list')
@@ -98,6 +100,12 @@ class Vmalloc(RamParser):
 
         list_walker = llist.ListWalker(self.ramdump, vmlist, next_offset)
         self.vmalloc_out = vmalloc_out
+        vmalloc_str = 'Memory mapped region allocated by Vmalloc\n\n'
+        vmalloc_str = vmalloc_str + '{0:42} {1:36} {2:6} {3:12} {4:46} {5:8}'\
+            .format('VM_STRUCT','ADDRESS_RANGE','SIZE','PHYS_ADDR','CALLER',
+                    'Flag')
+        vmalloc_str = vmalloc_str + '\n'
+        self.vmalloc_out.write(vmalloc_str)
         list_walker.walk(vmlist, self.list_func)
         print_out_str('---wrote vmalloc to vmalloc.txt')
         vmalloc_out.close()
@@ -121,7 +129,7 @@ class Vmalloc(RamParser):
     def parse(self):
         out_path = self.ramdump.outdir
         major, minor, patch = self.ramdump.kernel_version
-        if (major, minor) == (3, 10):
-            self.print_vmalloc_info_3_10(out_path)
+        if (major, minor) >= (3, 10):
+            self.print_vmalloc_info_v2(out_path)
         else:
             self.print_vmalloc_info(out_path)
