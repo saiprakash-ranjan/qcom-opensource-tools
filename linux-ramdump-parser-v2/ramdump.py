@@ -972,7 +972,7 @@ class RamDump():
             startup_script.write('data.load.binary {0} 0x{1:x}\n'.format(
                 ebi_path, ram[1]).encode('ascii', 'ignore'))
         if self.minidump:
-            dload_ram_elf = 'data.load.elf {} /LOGLOAD /nosymbol\n'.format(self.ram_elf_file)
+            dload_ram_elf = 'data.load.elf {} /LOGLOAD /nosymbol\n'.format(os.path.abspath(self.ram_elf_file))
             startup_script.write(dload_ram_elf.encode('ascii', 'ignore'))
 
         if not self.minidump:

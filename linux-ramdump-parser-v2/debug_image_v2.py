@@ -753,10 +753,6 @@ class DebugImage_v2():
                         self, dump_data_version, dump_data_addr,
                         dump_data_addr + dump_data_len, client_id, ram_dump)
         else:
-            dump_smem_table_ptr_offset = ram_dump.field_offset(
-                'struct md_table', 'md_smem_table')
-            dump_table_version_offset = ram_dump.field_offset(
-                'struct md_smem_table', 'version')
             dump_table_num_entry_offset = ram_dump.field_offset(
                 'struct md_table', 'num_regions')
             dump_table_entry_offset = ram_dump.field_offset(
@@ -779,11 +775,6 @@ class DebugImage_v2():
             mem_dump_table = ram_dump.read_word(
                 mem_dump_data + dump_table_entry_offset)
 
-            mem_dump_smem_table = ram_dump.read_word(
-                mem_dump_data + dump_smem_table_ptr_offset)
-
-            mem_table_version = ram_dump.read_u32(
-                mem_dump_smem_table + dump_table_version_offset)
             mem_table_num_entry = ram_dump.read_u32(
                 mem_dump_data + dump_table_num_entry_offset)
 
