@@ -1249,7 +1249,7 @@ class RamDump():
         list_offset = self.field_offset('struct module', 'list')
         name_offset = self.field_offset('struct module', 'name')
 
-        if self.kernel_version > (4, 4, 0):
+        if self.kernel_version > (4, 9, 0):
             module_core_offset = self.field_offset('struct module', 'core_layout.base')
         else:
             module_core_offset = self.field_offset('struct module', 'module_core')
