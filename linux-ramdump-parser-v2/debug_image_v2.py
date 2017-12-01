@@ -31,6 +31,7 @@ from cachedumplib import lookup_cache_type
 from tlbdumplib import lookup_tlb_type
 from vsens import VsensData
 from sysregs import SysRegDump
+from fcmdump import FCM_Dump
 
 MEMDUMPV2_MAGIC = 0x42445953
 MAX_NUM_ENTRIES = 0x150
@@ -55,6 +56,7 @@ class client(object):
     MSM_DUMP_DATA_LOG_BUF_FIRST_IDX = 0x111
     MSM_DUMP_DATA_L2_TLB = 0x120
     MSM_DUMP_DATA_SCANDUMP = 0xEB
+    MSM_DUMP_DATA_FCMDUMP = 0xEE
     MSM_DUMP_DATA_SCANDUMP_PER_CPU = 0x130
     MSM_DUMP_DATA_LLC_CACHE = 0x140
     MSM_DUMP_DATA_MAX = MAX_NUM_ENTRIES
@@ -63,6 +65,7 @@ class client(object):
 client_types = [
     ('MSM_DUMP_DATA_SCANDUMP', 'parse_scandump'),
     ('MSM_DUMP_DATA_SCANDUMP_PER_CPU', 'parse_scandump'),
+    ('MSM_DUMP_DATA_FCMDUMP', 'parse_fcmdump'),
     ('MSM_DUMP_DATA_CPU_CTX', 'parse_cpu_ctx'),
     ('MSM_DUMP_DATA_L1_INST_TLB', 'parse_tlb_common'),
     ('MSM_DUMP_DATA_L1_DATA_TLB', 'parse_tlb_common'),
@@ -160,6 +163,18 @@ class DebugImage_v2():
         if reg_info is not None:
             sv2.dump_core_pc(ram_dump)
             sv2.dump_all_regs(ram_dump)
+        return
+
+    def parse_fcmdump(self, version, start, end, client_id, ram_dump):
+        client_name = self.dump_data_id_lookup_table[client_id]
+
+        print_out_str(
+                'Parsing {0} context start {1:x} end {2:x}'.format(client_name, start, end))
+
+        fcmdumps = FCM_Dump(start, end)
+        if fcmdumps.dump_fcm_img(ram_dump) is False:
+            print_out_str('!!! Could not dump FCM')
+
         return
 
     def parse_cpu_ctx(self, version, start, end, client_id, ram_dump):
@@ -614,6 +629,9 @@ class DebugImage_v2():
         for i in range(0, 4):
                 self.dump_data_id_lookup_table[
                     client.MSM_DUMP_DATA_LLC_CACHE + i] = 'MSM_DUMP_DATA_LLC_CACHE'
+
+        self.dump_data_id_lookup_table[
+            client.MSM_DUMP_DATA_FCMDUMP] = 'MSM_DUMP_DATA_FCMDUMP'
         # 0x100 - tmc-etr registers and 0x101 - for tmc-etf registers
         self.dump_data_id_lookup_table[
             client.MSM_DUMP_DATA_TMC_REG + 1] = 'MSM_DUMP_DATA_TMC_REG'
