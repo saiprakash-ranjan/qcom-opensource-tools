@@ -22,7 +22,7 @@ def page_buddy(ramdump, page):
 def page_count(ramdump, page):
     """Commit: 0139aa7b7fa12ceef095d99dc36606a5b10ab83a
     mm: rename _count, field of the struct page, to _refcount"""
-    if (ramdump.version < (4, 6, 0)):
+    if (ramdump.kernel_version < (4, 6, 0)):
         count = ramdump.read_structure_field(page, 'struct page',
                                              '_count.counter')
     else:
