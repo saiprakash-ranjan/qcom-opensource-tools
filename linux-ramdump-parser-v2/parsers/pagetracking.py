@@ -23,7 +23,10 @@ class PageTracking(RamParser):
             return
 
         if (self.ramdump.kernel_version >= (3, 19, 0)):
-            mem_section = self.ramdump.read_word('mem_section')
+            if self.ramdump.is_config_defined('CONFIG_SPARSEMEM'):
+                mem_section = self.ramdump.read_word('mem_section')
+            else:
+                mem_section = self.ramdump.address_of('contig_page_data')
 
         trace_offset = 0
         nr_entries_offset = 0
@@ -39,8 +42,13 @@ class PageTracking(RamParser):
             trace_entries_offset = self.ramdump.field_offset(
                 'struct page', 'trace_entries')
         else:
-            page_ext_offset = self.ramdump.field_offset(
+            if self.ramdump.is_config_defined('CONFIG_SPARSEMEM'):
+                page_ext_offset = self.ramdump.field_offset(
                                     'struct mem_section', 'page_ext')
+            else:
+                page_ext_offset = self.ramdump.field_offset(
+                                    'struct pglist_data', 'node_page_ext')
+
             trace_offset = self.ramdump.field_offset(
                                     'struct page_ext', 'trace')
             if self.ramdump.is_config_defined('CONFIG_STACKDEPOT'):
@@ -53,7 +61,10 @@ class PageTracking(RamParser):
 
             nr_entries_offset = self.ramdump.field_offset(
                                 'struct page_ext', 'nr_entries')
-            mem_section_size = self.ramdump.sizeof("struct mem_section")
+            if self.ramdump.is_config_defined('CONFIG_SPARSEMEM'):
+                mem_section_size = self.ramdump.sizeof("struct mem_section")
+            else:
+                mem_section_size = 0;
             page_ext_size = self.ramdump.sizeof("struct page_ext")
             if self.ramdump.kernel_version >= (4,9,0):
                 page_owner_size = self.ramdump.sizeof("struct page_owner")
@@ -86,11 +97,22 @@ class PageTracking(RamParser):
                     continue
                 offset = phys >> 30
 
-                mem_section_0_offset = (
+                if self.ramdump.is_config_defined('CONFIG_SPARSEMEM'):
+                    mem_section_0_offset = (
                                 mem_section + (offset * mem_section_size))
-                page_ext = self.ramdump.read_word(
-                            mem_section_0_offset + page_ext_offset)
-                temp_page_ext = page_ext + (pfn * page_ext_size)
+                    page_ext = self.ramdump.read_word(
+                                mem_section_0_offset + page_ext_offset)
+                else:
+                    page_ext = self.ramdump.read_word(
+                                    mem_section + page_ext_offset)
+
+
+                if self.ramdump.arm64:
+                    temp_page_ext = page_ext + (pfn * page_ext_size)
+                else:
+                    pfn_index = pfn - (self.ramdump.phys_offset >> 12)
+                    temp_page_ext = page_ext + (pfn_index * page_ext_size)
+
                 if self.ramdump.kernel_version >= (4,9,0):
                     temp_page_ext = temp_page_ext + page_owner_ops_offset
                     order = self.ramdump.read_structure_field(
