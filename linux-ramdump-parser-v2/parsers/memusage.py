@@ -69,12 +69,7 @@ def do_dump_process_memory(ramdump):
         next_thread_pid = task_struct + offset_pid
         thread_task_pid = ramdump.read_int(next_thread_pid)
         signal_struct = ramdump.read_word(task_struct + offset_signal)
-        adj = ramdump.read_u16(signal_struct + offset_adj)
-        if adj & 0x8000:
-            adj = adj - 0x10000
-        rss, swap = get_rss(ramdump, task_struct)
-        if rss != 0:
-            task_info.append([thread_task_name, thread_task_pid, rss, swap, rss + swap, adj])
+
         next_task = ramdump.read_word(init_next_task)
         if next_task is None:
             break
@@ -91,6 +86,16 @@ def do_dump_process_memory(ramdump):
         init_thread_group = init_next_task - offset_tasks + offset_thread_group
         if init_next_task == orig_init_next_task:
             break
+
+        if signal_struct == 0 or signal_struct == None :
+            continue
+
+        adj = ramdump.read_u16(signal_struct + offset_adj)
+        if adj & 0x8000:
+            adj = adj - 0x10000
+        rss, swap = get_rss(ramdump, task_struct)
+        if rss != 0:
+            task_info.append([thread_task_name, thread_task_pid, rss, swap, rss + swap, adj])
 
     task_info = sorted(task_info, key=lambda l: l[4], reverse=True)
     str = '{0:<17s}{1:>8s}{2:>19s}{3:>12s}{4:>8}\n'.format(
