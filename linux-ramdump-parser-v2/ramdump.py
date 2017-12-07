@@ -1273,7 +1273,9 @@ class RamDump():
         for line in symbols:
             s = line.split(' ')
             if len(s) == 3:
-                mod_tbl_ent.sym_lookup_table.append( ( int(s[0], 16) + mod_tbl_ent.module_offset, s[2].rstrip() ) )
+                mod_tbl_ent.sym_lookup_table.append(
+                    (int(s[0], 16) + mod_tbl_ent.module_offset,
+                    s[2].rstrip() + '[' + mod_tbl_ent.name + ']'))
         stream.close()
 
     def parse_module_symbols(self):
