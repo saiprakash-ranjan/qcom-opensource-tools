@@ -159,15 +159,30 @@ class MemStats(RamParser):
             kgsl_memory = 0
 
         # zcompressed ram
-        zram_devices_word = self.ramdump.read_word('zram_devices')
-        if zram_devices_word is not None:
-            zram_devices_stat_offset = self.ramdump.field_offset(
+        if self.ramdump.kernel_version >= (4,4) :
+            zram_index_idr = self.ramdump.read_word('zram_index_idr')
+            idr_layer_ary_offset = self.ramdump.field_offset\
+                                        ('struct idr_layer','ary')
+            idr_layer_ary = self.ramdump.read_word(zram_index_idr +
+                                                   idr_layer_ary_offset)
+            zram_meta = idr_layer_ary + self.ramdump.field_offset\
+                                            ('struct zram','meta')
+            zram_meta = self.ramdump.read_word(zram_meta)
+            mem_pool = zram_meta + self.ramdump.field_offset\
+                                        ('struct zram_meta','mem_pool')
+            mem_pool = self.ramdump.read_word(mem_pool)
+            page_allocated = mem_pool + self.ramdump.field_offset\
+                                        ('struct zs_pool','pages_allocated')
+            stat_val = self.ramdump.read_u64(page_allocated)
+            stat_val = self.pages_to_mb(stat_val)
+        else :
+            zram_devices_word = self.ramdump.read_word('zram_devices')
+            if zram_devices_word is not None:
+                zram_devices_stat_offset = self.ramdump.field_offset(
                                         'struct zram', 'stats')
-            stat_addr = zram_devices_word + zram_devices_stat_offset
-            stat_val = self.ramdump.read_u64(stat_addr)
-            stat_val = self.bytes_to_mb(stat_val)
-        else:
-            stat_val = 0
+                stat_addr = zram_devices_word + zram_devices_stat_offset
+                stat_val = self.ramdump.read_u64(stat_addr)
+                stat_val = self.bytes_to_mb(stat_val)
 
         self.out_mem_stat = out_mem_stat
         self.vmalloc_size = 0
