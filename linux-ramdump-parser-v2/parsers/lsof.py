@@ -83,7 +83,8 @@ def parse_task(self, ramdump, task, lsof_info):
                         file, 'struct file', 'private_data')
             look = ramdump.unwind_lookup(fop)
             if look is None:
-                lsof_info.write(" look is none")
+                index = index + 1
+                continue
             fop, offset = look
 
             f_pathoffset = ramdump.field_offset(
