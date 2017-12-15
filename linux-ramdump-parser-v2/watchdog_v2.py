@@ -848,9 +848,22 @@ def get_wdog_timing(ramdump):
         wdog_data_addr + pet_timer_off + timer_expires_off)
     wdog_last_pet = ramdump.read_structure_field(
         wdog_data_addr, 'struct msm_watchdog_data', 'last_pet')
-    timer_expired_off = ramdump.field_offset(
-        'struct msm_watchdog_data', 'timer_expired')
-    pet_timer_expired = ramdump.read_word(wdog_data_addr + timer_expired_off)
+    #For kernel version less than 4.4, as the member variable timer_expired
+    #  is not available we need to get watchdog timer expire status
+    if (ramdump.kernel_version < (4, 4)):
+        pet_timer_entry_offset = ramdump.field_offset('struct timer_list', 'entry')
+        pet_timer_prev_offset = ramdump.field_offset('struct list_head', 'prev')
+        pet_timer_entry_prev = ramdump.read_word(
+            wdog_data_addr + pet_timer_off + pet_timer_entry_offset + pet_timer_prev_offset)
+
+        if(pet_timer_entry_prev == '0x200'):
+            pet_timer_expired = 1
+        else:
+            pet_timer_expired = 0
+    else:
+        timer_expired_off = ramdump.field_offset(
+            'struct msm_watchdog_data', 'timer_expired')
+        pet_timer_expired = ramdump.read_word(wdog_data_addr + timer_expired_off)
     pet_time_off = ramdump.field_offset('struct msm_watchdog_data', 'pet_time')
     bark_time_off = ramdump.field_offset(
         'struct msm_watchdog_data', 'bark_time')
