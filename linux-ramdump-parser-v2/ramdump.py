@@ -1249,7 +1249,7 @@ class RamDump():
         list_offset = self.field_offset('struct module', 'list')
         name_offset = self.field_offset('struct module', 'name')
 
-        if self.kernel_version > (4, 4, 0):
+        if self.kernel_version > (4, 9, 0):
             module_core_offset = self.field_offset('struct module', 'core_layout.base')
         else:
             module_core_offset = self.field_offset('struct module', 'module_core')
@@ -1273,7 +1273,9 @@ class RamDump():
         for line in symbols:
             s = line.split(' ')
             if len(s) == 3:
-                mod_tbl_ent.sym_lookup_table.append( ( int(s[0], 16) + mod_tbl_ent.module_offset, s[2].rstrip() ) )
+                mod_tbl_ent.sym_lookup_table.append(
+                    (int(s[0], 16) + mod_tbl_ent.module_offset,
+                    s[2].rstrip() + '[' + mod_tbl_ent.name + ']'))
         stream.close()
 
     def parse_module_symbols(self):
@@ -1634,7 +1636,7 @@ class RamDump():
         return cpu
 
     def thread_saved_field_common_32(self, task, reg_offset):
-        thread_info = self.read_word(self.get_thread_info_addr(task))
+        thread_info = self.get_thread_info_addr(task)
         cpu_context_offset = self.field_offset('struct thread_info', 'cpu_context')
         val = self.read_word(thread_info + cpu_context_offset + reg_offset)
         return val
