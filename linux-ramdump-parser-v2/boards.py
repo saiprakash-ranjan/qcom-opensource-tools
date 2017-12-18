@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -707,6 +707,7 @@ boards.append(Board8992(socid=252))
 
 boards.append(Board8996(socid=246))
 boards.append(Board8996(socid=291))
+boards.append(Board8996(socid=315))
 
 boards.append(Board8952(socid=264))
 
