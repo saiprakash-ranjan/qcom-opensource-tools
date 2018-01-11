@@ -1,4 +1,4 @@
-# Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -76,13 +76,24 @@ class CollapsedMapping(object):
         self.execute_never_str = execute_never_str
         self.mapped = mapped
 
+"""
+Create a single Collapsed mapping representing the FlatMappings between
+first and last, inclusive.
+"""
+def add_collapsed_mapping(mappings, first, last):
+    virt_start = first.virt
 
-def add_collapsed_mapping(mappings, virt_start, virt_end, phys_start, phys_end,
-                          map_type, map_size, attr_indx_str, shareability_str,
-                          execute_never_str, mapped):
-    map = CollapsedMapping(virt_start, virt_end, phys_start, phys_end,
-                           map_type, map_size, attr_indx_str, shareability_str,
-                           execute_never_str, mapped)
+    map = CollapsedMapping(
+               virt_start = virt_start,
+               virt_end = last.virt + last.map_size,
+               phys_start = first.phys,
+               phys_end = last.phys + last.map_size,
+               map_type = first.type,
+               map_size = first.map_size,
+               attr_indx_str = first.attr_indx_str,
+               shareability_str = first.shareability_str,
+               execute_never_str = first.execute_never_str,
+               mapped = first.mapped)
 
     if virt_start not in mappings:
         mappings[virt_start] = map
@@ -90,53 +101,41 @@ def add_collapsed_mapping(mappings, virt_start, virt_end, phys_start, phys_end,
         map.type = 'Duplicate'
         mappings[virt_start] = map
 
-    return mappings
-
-
+"""
+Combine adjacent holes in the page table, but leave all valid entries
+unchanged.
+"""
 def create_collapsed_mapping(flat_mapping):
     collapsed_mapping = {}
 
-    if len(flat_mapping.keys()) > 0:
-        virt_addrs = sorted(flat_mapping.keys())
-        start_map = prev_map = flat_mapping[virt_addrs[0]]
-        last_mapping = False
-        new_mapping = False
+    if not len(flat_mapping.keys()):
+        return collapsed_mapping
 
-        for virt in virt_addrs[1:]:
-            map = flat_mapping[virt]
+    virt_addrs = sorted(flat_mapping.keys())
+    start_map = prev_map = flat_mapping[virt_addrs[0]]
+    new_mapping = False
 
-            if map.map_size == prev_map.map_size \
-               and map.type == prev_map.type \
-               and map.mapped == prev_map.mapped \
-               and not map.mapped:
-                new_mapping = False
+    for virt in virt_addrs[1:]:
+        map = flat_mapping[virt]
 
-                if virt == virt_addrs[-1]:
-                    last_mapping = True
+        if map.map_size == prev_map.map_size \
+           and map.type == prev_map.type \
+           and map.mapped == prev_map.mapped \
+           and map.attr_indx_str == prev_map.attr_indx_str \
+           and not map.mapped:
+            new_mapping = False
+        else:
+            new_mapping = True
 
-            else:
-                new_mapping = True
+        if new_mapping:
+            add_collapsed_mapping(
+                collapsed_mapping, start_map, prev_map)
+            start_map = map
 
-            if new_mapping:
-                collapsed_mapping = add_collapsed_mapping(
-                    collapsed_mapping, start_map.virt,
-                    map.virt, start_map.phys,
-                    start_map.phys + start_map.map_size,
-                    start_map.type, start_map.map_size, map.attr_indx_str,
-                    map.shareability_str, map.execute_never_str,
-                    start_map.mapped)
-                start_map = map
+        prev_map = map
 
-            elif last_mapping:
-                collapsed_mapping = add_collapsed_mapping(
-                    collapsed_mapping, start_map.virt,
-                    0xFFFFFFFFFFFF + 1, start_map.phys,
-                    start_map.phys + start_map.map_size,
-                    start_map.type, start_map.map_size, map.attr_indx_str,
-                    map.shareability_str, map.execute_never_str,
-                    start_map.mapped)
-
-            prev_map = map
+    """Add the last entry"""
+    add_collapsed_mapping(collapsed_mapping, start_map, prev_map)
     return collapsed_mapping
 
 
