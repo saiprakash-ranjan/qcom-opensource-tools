@@ -1,4 +1,4 @@
-# Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
+# Copyright (c) 2016-2018 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -67,6 +67,12 @@ class MemStats(RamParser):
                      vmstat_kernelstack - vmstat_swapcache)
         other_mem = self.pages_to_mb(other_mem)
         return other_mem
+
+    def calculate_cached(self):
+        vmstat_file_pages = self.ramdump.read_word(
+                            'vm_node_stat[NR_FILE_PAGES]')
+        cached = self.pages_to_mb(vmstat_file_pages)
+        return cached
 
     def calculate_vm_node_zone_stat(self):
         # Other memory :  NR_ANON_MAPPED + NR_FILE_PAGES + NR_PAGETABLE \
@@ -146,6 +152,7 @@ class MemStats(RamParser):
            total_slab = self.pages_to_mb(slab_rec + slab_unrec)
            #others
            other_mem = self.calculate_vm_node_zone_stat()
+           cached = self.calculate_cached()
 
         # ion memory
         ion_mem = self.calculate_ionmem()
@@ -206,6 +213,8 @@ class MemStats(RamParser):
                             "vmalloc  ", self.vmalloc_size))
         out_mem_stat.write('\n{0:30}: {1:8} MB'.format(
                             "Others  ", other_mem))
+        out_mem_stat.write('\n{0:30}: {1:8} MB'.format(
+                            "Cached  ",cached))
 
     def parse(self):
         with self.ramdump.open_file('mem_stat.txt') as out_mem_stat:
