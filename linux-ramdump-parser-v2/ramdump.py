@@ -51,7 +51,9 @@ extra_mem_file_names = ['EBI1CS1.BIN', 'DDRCS1.BIN', 'ebi1_cs1.bin',
                         'DDRCS1_5.BIN']
 
 DDR_FILE_NAMES = ['DDRCS0.BIN', 'DDRCS1.BIN', 'DDRCS0_0.BIN',
-                  'DDRCS1_0.BIN', 'DDRCS0_1.BIN', 'DDRCS1_1.BIN']
+                  'DDRCS1_0.BIN', 'DDRCS0_1.BIN', 'DDRCS1_1.BIN',
+                  'DDR_0.BIN', 'DDR_1.BIN', 'DDR_2.BIN', 'DDR_3.BIN',
+                  'RESET_INFO.BIN']
 OTHER_DUMP_FILE_NAMES = ['PIMEM.BIN', 'OCIMEM.BIN','md_shared_imem.BIN',
                          'md_smem_info.BIN']
 RAM_FILE_NAMES = set(DDR_FILE_NAMES +
@@ -1213,6 +1215,7 @@ class RamDump():
             self.kaslr_addr = board.kaslr_addr
         else:
             self.kaslr_addr = None
+        self.board = board
         return True
 
     def resolve_virt(self, virt_or_name):
@@ -1491,19 +1494,18 @@ class RamDump():
         fn = self.read_u32 if self.sizeof('void *') == 4 else self.read_u64
         return fn(addr_or_name, virtual, cpu)
 
-    def read_structure_field(self, addr_or_name, struct_name, field):
+    def read_structure_field(self, addr_or_name, struct_name, field, virtual=True):
         """reads a 4 or 8 byte field from a structure"""
         size = self.sizeof("(({0} *)0)->{1}".format(struct_name, field))
-        virt = self.resolve_virt(addr_or_name)
-        if virt is None or size is None:
+        addr = self.resolve_virt(addr_or_name)
+        if addr is None or size is None:
             return None
 
+        addr += self.field_offset(struct_name, field)
         if size == 4:
-            return self.read_u32(virt + self.field_offset(struct_name,
-                                                                  field))
+            return self.read_u32(addr, virtual)
         if size == 8:
-            return self.read_u64(virt + self.field_offset(struct_name,
-                                                                  field))
+            return self.read_u64(addr, virtual)
         return None
 
     def read_structure_cstring(self, addr_or_name, struct_name, field,
