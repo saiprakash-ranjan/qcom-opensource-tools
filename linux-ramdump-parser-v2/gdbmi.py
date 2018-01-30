@@ -300,12 +300,14 @@ class GdbMI(object):
             raise GdbMIException(
                             cmd, '\n'.join(result.lines + result.oob_lines))
         match = re.search(r'^[$]\d+ = \\"(.*)(\\\\n\\")', result.lines[0])
+        match_1 = re.search(r'^[$]\d+ = 0x[0-9a-fA-F]+ .* \\"(.*)(\\\\n\\")', result.lines[0])
+        match_2 = re.search(r'^[$]\d+ = 0x[0-9a-fA-F]+ \\"(.*)(\\\\n\\")', result.lines[0])
         if match:
-            return match.group(1)
-        else:
-            match = re.search(r'^[$]\d+ = 0x[0-9a-fA-F]+ .* \\"(.*)(\\\\n\\")', result.lines[0])
-            if match:
-                return match.group(1)
+            return match.group(1).replace('\\\\n\\"',"")
+        elif match_1:
+            return match_1.group(1)
+        elif match_2:
+             return match_2.group(1).replace('\\\\n\\"', "")
         return None
 
 
