@@ -1,4 +1,4 @@
-# Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -23,6 +23,8 @@ class lpm(RamParser):
         self.cpu_possible_bits = None
         self.cpu_online_bits = None
         self.lpm_debug = []
+        self.related_cpus_bits = None
+
 
     def get_bits(self):
         bits_addr = self.ramdump.address_of('cpu_possible_bits')
@@ -80,10 +82,12 @@ class lpm(RamParser):
                 # ToDo: Need a better way to arrive at the next level info.
                 level = levels + (i * cluster_level_size)
 
-                offset = self.ramdump.field_offset('struct lpm_cluster_level', 'mode')
-                addr = self.ramdump.read_word(level + offset, True)
-                node = self.ramdump.read_int(addr)
-                self.output.append("{:20}:{}\n".format("level mode", node))
+                # Case to handle 'mode'.'mode' removed in kernel version ( >= 4.9) for core power lpm drivers.
+                if (self.ramdump.kernel_version < (4,9,0) ):
+                    offset = self.ramdump.field_offset('struct lpm_cluster_level', 'mode')
+                    addr = self.ramdump.read_word(level + offset, True)
+                    node = self.ramdump.read_int(addr)
+                    self.output.append("{:20}:{}\n".format("level mode", node))
 
                 offset = self.ramdump.field_offset('struct lpm_cluster_level', 'level_name')
                 addr = self.ramdump.read_word(level + offset, True)
@@ -156,17 +160,22 @@ class lpm(RamParser):
         lpm_walker = linux_list.ListWalker(self.ramdump, lpm_cluster, offset)
         lpm_walker.walk(lpm_cluster, self.lpm_walker)
 
-    def get_cpu_level_info(self, cpu_cluster_base, cpu):
+
+    def get_cpu_level_info(self, cpu_cluster_base, cpu, cpu_level):
         self.output.append("{:20}:{}\n".format("CPU", cpu))
 
-        cpu_cluster = self.ramdump.read_word(cpu_cluster_base, cpu=cpu)
-        offset = self.ramdump.field_offset('struct lpm_cluster', 'cpu')
-        cpu_level = self.ramdump.read_word(cpu_cluster + offset, True)
+        if self.ramdump.kernel_version >= (4,9,0):
+            cpu_level = cpu_level
+        else:
+
+            cpu_cluster = self.ramdump.read_word(cpu_cluster_base, cpu=cpu)
+            offset = self.ramdump.field_offset('struct lpm_cluster', 'cpu')
+            cpu_level = self.ramdump.read_word(cpu_cluster + offset, True)
+
 
         offset = self.ramdump.field_offset('struct lpm_cpu', 'nlevels')
         nlevels = self.ramdump.read_int(cpu_level + offset, True)
         self.output.append("{:20}:{}\n".format("number of levels", nlevels))
-
         offset = self.ramdump.field_offset('struct lpm_cpu', 'levels')
         levels = cpu_level + offset
 
@@ -187,9 +196,11 @@ class lpm(RamParser):
                 node = self.ramdump.read_cstring(addr, 48)
                 self.output.append("{:20}:{}\n".format("level name", node))
 
-                offset = self.ramdump.field_offset('struct lpm_cpu_level', 'mode')
-                node = self.ramdump.read_int(level + offset, True)
-                self.output.append("{:20}:{}\n".format("level mode", node))
+                # Case to handle 'mode'.'mode' removed in kernel version ( > = 4.9) for core power lpm drivers.
+                if (self.ramdump.kernel_version < (4,9,0) ):
+                    offset = self.ramdump.field_offset('struct lpm_cpu_level', 'mode')
+                    node = self.ramdump.read_int(level + offset, True)
+                    self.output.append("{:20}:{}\n".format("level mode", node))
 
                 level_available = cpu_level_available + i * self.ramdump.sizeof('struct lpm_level_avail')
                 offset = self.ramdump.field_offset('struct lpm_level_avail', 'idle_enabled')
@@ -211,14 +222,41 @@ class lpm(RamParser):
                 self.get_cluster_level_info(i)
                 self.output.append("{}{}".format("-" * 81, "\n"))
 
-        cpu_cluster_base = self.ramdump.address_of('cpu_cluster')
+        if self.ramdump.kernel_version >= (4,9,0):
+            cpu_cluster_base = self.ramdump.address_of('lpm_root_node')
+        else:
+            cpu_cluster_base = self.ramdump.address_of('cpu_cluster')
+
+
         if cpu_cluster_base is None:
                 self.output.append("NOTE: 'cpu_cluster' not found\n")
                 return
 
-        cpus = bin(self.cpu_possible_bits).count('1')
-        for i in range(0, cpus):
-                self.get_cpu_level_info(cpu_cluster_base, i)
+        if self.ramdump.kernel_version >= (4,9,0):
+            cpu_cluster = self.ramdump.read_word(cpu_cluster_base)
+            related_cpus_offset = self.ramdump.field_offset('struct lpm_cpu', 'related_cpus')
+
+            bits_offset = self.ramdump.field_offset('struct cpumask', 'bits')
+            offset = self.ramdump.field_offset('struct lpm_cluster', 'cpu')
+            clust_node_list = ['next','prev']
+            for clust_node in clust_node_list:
+                cpunode_offset = self.ramdump.field_offset('struct list_head', clust_node)
+                offset = offset + cpunode_offset
+                cpu_level = self.ramdump.read_word(cpu_cluster + offset, True)
+                self.related_cpus_bits = self.ramdump.read_int(cpu_level + related_cpus_offset + bits_offset, True)
+                cpus = bin(self.related_cpus_bits).count('1')
+                cpu_info = self.related_cpus_bits
+                cpu_count = 0
+                while (cpu_info):
+                    if ( cpu_info  & 0x1):
+                        self.get_cpu_level_info(cpu_cluster_base, cpu_count,cpu_level)
+                    cpu_info = cpu_info >> 0x1
+                    cpu_count = cpu_count + 1
+        else:
+            cpus = bin(self.cpu_possible_bits).count('1')
+            for i in range(0, cpus):
+                    self.get_cpu_level_info(cpu_cluster_base, i,0x0)
+
 
     def get_time_stats(self, tstats, nlevels):
         for i in range(nlevels):
