@@ -35,6 +35,7 @@ from fcmdump import FCM_Dump
 
 MEMDUMPV2_MAGIC = 0x42445953
 MAX_NUM_ENTRIES = 0x150
+IMEM_OFFSET_MEM_DUMP_TABLE = 0x3f010
 
 class client(object):
     MSM_DUMP_DATA_CPU_CTX = 0x00
@@ -598,6 +599,40 @@ class DebugImage_v2():
         results.append((client_name, client_id,client_table[client_name], entry_pa_addr,end_addr))
         return results
 
+    class MsmDumpTable(object):
+        def __init__(self):
+            self.name = "Anon"
+            self.phys_addr = 0x0
+            self.version = 0x0
+            self.num_entries = 0x0
+
+    """ Create an instance of MsmDumpTable, or None on error """
+    def validateMsmDumpTable(self, ram_dump, name, table_phys):
+        if table_phys is None:
+            print_out_str('debug_image.py: Table {}: Unable to read dump table base address'.format(name))
+            return None
+
+        version = ram_dump.read_structure_field(
+                    table_phys, 'struct msm_dump_table', 'version',
+                    virtual = False)
+        if version is None:
+            print_out_str('Table {}: Version is bogus! Can\'t parse debug image'.format(name))
+            return None
+
+        num_entries = ram_dump.read_structure_field(
+                        table_phys, 'struct msm_dump_table', 'num_entries',
+                        virtual = False)
+        if num_entries is None or num_entries > 100:
+            print_out_str('Table {}: num_entries is bogus! Can\'t parse debug image'.format(name))
+            return None
+
+        table = self.MsmDumpTable()
+        table.name = name
+        table.phys_addr = table_phys
+        table.version = version
+        table.num_entries = num_entries
+        return table
+
     def parse_dump_v2(self, ram_dump):
         self.dump_type_lookup_table = ram_dump.gdbmi.get_enum_lookup_table(
             'msm_dump_type', 2)
@@ -674,32 +709,34 @@ class DebugImage_v2():
             dump_entry_size = ram_dump.sizeof('struct msm_dump_entry')
             dump_data_size = ram_dump.sizeof('struct msm_dump_data')
 
-            mem_dump_data = ram_dump.address_of('memdump')
+            """
+            Some multi-guest hypervisor systems override the imem location
+            with a table for a crashed guest. So the value from IMEM may
+            not match the value saved in the linux variable 'memdump'.
+            """
+            table_phys = ram_dump.read_word(
+                ram_dump.board.imem_start + IMEM_OFFSET_MEM_DUMP_TABLE,
+                virtual = False)
+            root_table = self.validateMsmDumpTable(ram_dump, "IMEM", table_phys)
 
-            mem_dump_table = ram_dump.read_word(
-                mem_dump_data + dump_table_ptr_offset)
+            if root_table is None:
+                table_phys = ram_dump.read_structure_field(
+                    'memdump', 'struct msm_memory_dump', 'table_phys')
+                root_table = self.validateMsmDumpTable(ram_dump, "RAM", table_phys)
 
-            mem_table_version = ram_dump.read_u32(
-                mem_dump_table + dump_table_version_offset)
-            if mem_table_version is None:
-                print_out_str('Version is bogus! Can\'t parse debug image')
-                return
-            mem_table_num_entry = ram_dump.read_u32(
-                mem_dump_table + dump_table_num_entry_offset)
-            if mem_table_num_entry is None or mem_table_num_entry > 100:
-                print_out_str('num_entries is bogus! Can\'t parse debug image')
+            if root_table is None:
                 return
 
             print_out_str('\nDebug image version: {0}.{1} Number of table entries {2}'.format(
-                mem_table_version >> 20, mem_table_version & 0xFFFFF, mem_table_num_entry))
+                root_table.version >> 20, root_table.version & 0xFFFFF, root_table.num_entries))
             print_out_str('--------')
 
-            for i in range(0, mem_table_num_entry):
-                this_entry = mem_dump_table + dump_table_entry_offset + \
+            for i in range(0, root_table.num_entries):
+                this_entry = root_table.phys_addr + dump_table_entry_offset + \
                     i * dump_entry_size
-                entry_id = ram_dump.read_u32(this_entry + dump_entry_id_offset)
-                entry_type = ram_dump.read_u32(this_entry + dump_entry_type_offset)
-                entry_addr = ram_dump.read_word(this_entry + dump_entry_addr_offset)
+                entry_id = ram_dump.read_u32(this_entry + dump_entry_id_offset, virtual = False)
+                entry_type = ram_dump.read_u32(this_entry + dump_entry_type_offset, virtual = False)
+                entry_addr = ram_dump.read_word(this_entry + dump_entry_addr_offset, virtual = False)
 
                 if entry_id < 0 or entry_id > len(self.dump_table_id_lookup_table):
                     print_out_str(
