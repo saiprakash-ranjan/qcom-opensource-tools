@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -77,10 +77,11 @@ class Slabinfo_summary(RamParser):
         max_pfn_addr = self.ramdump.address_of('max_pfn')
         max_pfn = self.ramdump.read_word(max_pfn_addr)
         max_page = pfn_to_page(self.ramdump, max_pfn)
-        format_string = '\n{0:35} {1:9} {2:10} {3:10} {4:8}K {5:10} {6:10}K'
+        format_string = '\n{0:35} {1:9} {2:10} {3:10} {4:10} {5:8}K {6:8}' \
+                        ' {7:10}K'
         slab_out.write(
-            '{0:35} {1:9} {2:10} {3:10} {4:8} {5:10} {6:10}'.format(
-                                        "NAME", "OBJSIZE", "ALLOCATED",
+            '{0:37} {1:12} {2:8} {3:10} {4:8} {5:12} {6:10} {7:10}'.format(
+                                        "NAME", "OBJSIZE", "SIZE","ALLOCATED",
                                         "TOTAL", "TOTAL*SIZE", "SLABS",
                                         "SSIZE"))
 
@@ -112,7 +113,7 @@ class Slabinfo_summary(RamParser):
             for i in range(0, cpus):
                 cpu_slabn_addr = self.ramdump.read_word(
                                             cpu_slab_addr, cpu=i)
-                if cpu_slabn_addr == 0 or None:
+                if cpu_slabn_addr == 0 or cpu_slabn_addr is None:
                     break
                 total_freeobjects = total_freeobjects + self.cal_free_pages(
                                 self.ramdump,
@@ -131,7 +132,7 @@ class Slabinfo_summary(RamParser):
             slab_size = slab_size / 1024
             slab = self.ramdump.read_word(slab + slab_list_offset)
             slab_summary[nCounter] = [
-                    slab_name, obj_size,
+                    slab_name, obj_size, objsize_w_metadata,
                     total_allocated, nr_total_objects,
                     (objsize_w_metadata * nr_total_objects)/1024,
                     num_slabs, slab_size]
@@ -141,7 +142,7 @@ class Slabinfo_summary(RamParser):
         for val in sorted_summary:
             slab_out.write(format_string.format(
                                 val[0], val[1], val[2], val[3], val[4],
-                                val[5], val[6]))
+                                val[5], val[6], val[7]))
 
     def parse(self):
         slab_out = self.ramdump.open_file('slabsummary.txt')
