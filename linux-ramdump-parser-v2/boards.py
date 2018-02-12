@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -540,6 +540,19 @@ class BoardSDM855(Board):
         self.wdog_addr = 0x146BF658
         self.imem_file_name = 'OCIMEM.BIN'
 
+class BoardPoorwills(Board):
+    def __init__(self, socid):
+        super(BoardPoorwills, self).__init__()
+        self.socid = socid
+        self.board_num = "poorwills"
+        self.cpu = 'CORTEXA7'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0xFE40000
+        self.phys_offset = 0x80000000
+        self.imem_start = 0x14680000
+        self.wdog_addr =  0x14680658
+        self.imem_file_name = 'OCIMEM.BIN'
+
 boards = []
 
 boards.append(Board9640(socid=234))
@@ -707,6 +720,7 @@ boards.append(Board8992(socid=252))
 
 boards.append(Board8996(socid=246))
 boards.append(Board8996(socid=291))
+boards.append(Board8996(socid=315))
 
 boards.append(Board8952(socid=264))
 
@@ -758,6 +772,9 @@ boards.append(BoardSDM670(socid=336))
 boards.append(BoardSDM670(socid=337))
 
 boards.append(BoardQCS605(socid=347))
+
+boards.append(BoardPoorwills(socid=334))
+boards.append(BoardPoorwills(socid=335))
 
 def get_supported_boards():
     """ Called by other part of the code to get a list of boards """

@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -97,6 +97,8 @@ class IommuLib(object):
 
         iommu_domain_ops = self.ramdump.read_structure_field(
             domain_ptr, 'struct iommu_domain', 'ops')
+        if iommu_domain_ops is None or iommu_domain_ops == 0:
+            return
 
         if iommu_domain_ops == arm_smmu_ops:
             if priv_ptr is not None:
@@ -107,15 +109,24 @@ class IommuLib(object):
 
             pgtbl_ops_ptr = self.ramdump.read_structure_field(
                 arm_smmu_domain_ptr, 'struct arm_smmu_domain', 'pgtbl_ops')
+            if pgtbl_ops_ptr is None or pgtbl_ops_ptr == 0:
+                return
 
             pg_table = 0
             level = 0
-            if pgtbl_ops_ptr != 0:
-                io_pgtable_ptr = self.ramdump.container_of(
-                    pgtbl_ops_ptr, 'struct io_pgtable', 'ops')
+            fn = self.ramdump.read_structure_field(pgtbl_ops_ptr,
+                    'struct io_pgtable_ops', 'map')
+            if fn == self.ramdump.address_of('av8l_fast_map'):
+                av8l_fast_io_pgtable_ptr = self.ramdump.container_of(
+                    pgtbl_ops_ptr, 'struct av8l_fast_io_pgtable', 'iop.ops')
 
+                pg_table = self.ramdump.read_structure_field(
+                    av8l_fast_io_pgtable_ptr, 'struct av8l_fast_io_pgtable',
+                    'pgd')
+                level = 3
+            else:
                 arm_lpae_io_pgtable_ptr = self.ramdump.container_of(
-                    io_pgtable_ptr, 'struct arm_lpae_io_pgtable', 'iop')
+                    pgtbl_ops_ptr, 'struct arm_lpae_io_pgtable', 'iop.ops')
 
                 pg_table = self.ramdump.read_structure_field(
                     arm_lpae_io_pgtable_ptr, 'struct arm_lpae_io_pgtable',

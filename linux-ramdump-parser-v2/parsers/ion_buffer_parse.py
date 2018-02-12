@@ -1,5 +1,5 @@
 """
-Copyright (c) 2016, The Linux Foundation. All rights reserved.
+Copyright (c) 2016, 2018 The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -28,6 +28,9 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 from parser_util import register_parser, RamParser
+from rb_tree import RbTree
+import logging
+import os
 
 RB_PARENT_COLOR_MASK = 0xFFFFFFFFFFFFFFFC
 grand_total = 0
@@ -112,13 +115,12 @@ def parse_heap(self, ramdump, heap_addr,  ion_info):
     ion_dev = ramdump.read_structure_field(
                     ion_heap, 'struct ion_heap',  'dev')
 
-    ion_dev_rb_root = ramdump.read_structure_field(
-                    ion_dev, 'struct ion_device',  'clients')
+    clients_rb_root = ion_dev + ramdump.field_offset('struct ion_device',  'clients')
 
     if ionheap_total_allocated != 0:
         nr_clients = show_ion_dev_client(
                             self, ramdump,
-                            ion_dev_rb_root,
+                            clients_rb_root,
                             ionheap_id, ion_info)
 
         str = "\n \nTotal number of clients: {0:1}"
@@ -142,11 +144,9 @@ def parse_heap(self, ramdump, heap_addr,  ion_info):
 def parse_orphan_buffers(self, ramdump, ion_dev, heap_id, ion_info):
     orphan_buffer_size = 0
     total_buffer_size = 0
-    ion_dev_buffer_rb_root = ramdump.read_structure_field(
-                    ion_dev, 'struct ion_device',  'buffers')
 
-    rb_node = parser(
-                self, 1, ramdump,  ion_dev_buffer_rb_root,  ion_info)
+    rbtree = RbTree(ramdump, ion_dev + ramdump.field_offset('struct ion_device', 'buffers'),
+                    logger = self.logger, debug = True)
 
     ion_buffer_rb_node_offset = ramdump.field_offset(
                                 'struct ion_buffer', 'node')
@@ -156,7 +156,7 @@ def parse_orphan_buffers(self, ramdump, ion_dev, heap_id, ion_info):
                                 'struct ion_buffer', 'ref')
     str = "\n buffer: 0x{0:x}, Buffer size: {1} KB "
     str = str + "comm: {2} PID: {3} kmap count: {4} ref_count : {5}"
-    while rb_node != 0:
+    for rb_node in rbtree:
         ion_buffer = rb_node - ion_buffer_rb_node_offset
         ion_buffer_ref_add = ion_buffer + ion_buffer_ref_offset
         ion_buffer_heap = ramdump.read_structure_field(
@@ -188,19 +188,20 @@ def parse_orphan_buffers(self, ramdump, ion_dev, heap_id, ion_info):
                                             ion_buffer_kmap_count,
                                             ref_counter))
                 orphan_buffer_size = orphan_buffer_size + ion_buffer_size
-        rb_node = parser(self, 2, ramdump,  rb_node, ion_info)
     return orphan_buffer_size,  total_buffer_size
 
 
 def show_ion_dev_client(
                         self,
                         ramdump,
-                        ion_dev_rb_root,
+                        rb_root,
                         ionheap_id, ion_info):
     global ion_heap_buffers
     nr_clients = 0
     client_name = 0
-    rb_node = parser(self, 1, ramdump,  ion_dev_rb_root,  ion_info)
+
+    rbtree = RbTree(ramdump, rb_root, logger = self.logger, debug = True)
+
     ion_client_node_offset = ramdump.field_offset(
                             'struct ion_client',  'node')
     task_comm_offset = ramdump.field_offset(
@@ -208,8 +209,8 @@ def show_ion_dev_client(
     tempstr = "\n\n CLIENT: (struct ion_client *)0x{0:x} ,  "
     str = tempstr + "task : {1} / ion_client : {2} / PID: {3} / Size : {4} KB"
     str1 = tempstr + "ion_client : {1} / PID: {2} / Size : {3} KB"
-    if rb_node != 0:
-        while rb_node != 0:
+    if True:
+        for rb_node in rbtree:
             ion_client = rb_node - ion_client_node_offset
             heap_size = traverse_ion_heap_buffer(
                                                             self,
@@ -244,7 +245,6 @@ def show_ion_dev_client(
                                     client_PID, bytes_to_KB(heap_size)))
                 for heap_buffer in ion_heap_buffers:
                     ion_info.write(heap_buffer)
-            rb_node = parser(self, 2, ramdump,  rb_node,  ion_info)
     return nr_clients
 
 
@@ -256,9 +256,11 @@ def traverse_ion_heap_buffer(self, ramdump, ion_client,  ionheap_id, ion_info):
     ion_buffer_heap_size = 0
     ion_heap_buffers = []
     str = "\n (+) ion_buffer: 0x{0:x} size: {1:0} KB Handle Count: {2:0}"
-    ion_handle_rb_node = parser(
-                        self, 1, ramdump, ion_handle_root_address, ion_info)
-    while ion_handle_rb_node != 0:
+
+    rbtree = RbTree(ramdump, ion_handle_root_address,
+                    logger=self.logger, debug = True)
+
+    for ion_handle_rb_node in rbtree:
         ion_handle = ion_handle_rb_node - self.ion_handle_node_offset
         ion_buffer = ramdump.read_structure_field(
                             ion_handle, 'struct ion_handle', 'buffer')
@@ -278,8 +280,6 @@ def traverse_ion_heap_buffer(self, ramdump, ion_client,  ionheap_id, ion_info):
                             bytes_to_KB(ion_buffer_size),
                             ion_buffer_handlecount)
             ion_heap_buffers.append(temp)
-        ion_handle_rb_node = parser(
-                            self, 2, ramdump, ion_handle_rb_node, ion_info)
     return ion_buffer_heap_size
 
 
@@ -368,4 +368,10 @@ class DumpIonBuffer(RamParser):
                 {1}'.format(self.ramdump.kernel_version[0],
                             self.ramdump.kernel_version[1]))
                 return
+
+            self.logger = logging.getLogger(__name__)
+            path = os.path.join(self.ramdump.outdir, 'print-ionbuffer.stderr')
+            self.logger.addHandler(logging.FileHandler(path, mode='w'))
+            self.logger.setLevel(logging.INFO)
+            self.logger.info("Starting --print-ionbuffer")
             do_dump_ionbuff_info(self, self.ramdump, ion_info)
