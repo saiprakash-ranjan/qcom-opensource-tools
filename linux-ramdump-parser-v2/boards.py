@@ -371,6 +371,7 @@ class Board450(Board):
         self.phys_offset = 0x40000000
         self.imem_start = 0x8600000
         self.wdog_addr = 0x8600658
+        self.kaslr_addr = 0x86006d0
         self.imem_file_name = 'OCIMEM.BIN'
 
 class Board8917(Board):
