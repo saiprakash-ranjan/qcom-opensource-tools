@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -72,6 +72,8 @@ class AutoDumpInfo(object):
     def parse(self):
         for (filename, base_addr) in self._parse():
             fullpath = os.path.join(self.autodumpdir, filename)
+            if not os.path.exists(fullpath):
+                continue
             end = base_addr + os.path.getsize(fullpath) - 1
             self.ebi_files.append((open(fullpath, 'rb'), base_addr, end, fullpath))
             # sort by addr, DDR files first. The goal is for
