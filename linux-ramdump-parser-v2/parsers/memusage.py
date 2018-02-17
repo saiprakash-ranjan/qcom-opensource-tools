@@ -1,4 +1,4 @@
-# Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
+# Copyright (c) 2016-2018 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -30,6 +30,7 @@ def do_dump_process_memory(ramdump):
     offset_tasks = ramdump.field_offset('struct task_struct', 'tasks')
     offset_comm = ramdump.field_offset('struct task_struct', 'comm')
     offset_signal = ramdump.field_offset('struct task_struct', 'signal')
+    prev_offset = ramdump.field_offset('struct list_head','prev')
     offset_adj = ramdump.field_offset('struct signal_struct', 'oom_score_adj')
     offset_thread_group = ramdump.field_offset(
         'struct task_struct', 'thread_group')
@@ -72,6 +73,45 @@ def do_dump_process_memory(ramdump):
 
         next_task = ramdump.read_word(init_next_task)
         if next_task is None:
+            init_next_task = init_addr + offset_tasks
+            init_next_task = init_next_task + prev_offset
+            init_next_task = ramdump.read_word(init_next_task)
+            init_thread_group = init_next_task - offset_tasks \
+                                + offset_thread_group
+            while True:
+                init_next_task = init_next_task + prev_offset
+                orig_init_next_task = init_next_task
+                task_struct = init_thread_group - offset_thread_group
+                next_thread_comm = task_struct + offset_comm
+                thread_task_name = cleanupString(
+                    ramdump.read_cstring(next_thread_comm, 16))
+                next_thread_pid = task_struct + offset_pid
+                thread_task_pid = ramdump.read_int(next_thread_pid)
+                signal_struct = ramdump.read_word(task_struct + offset_signal)
+                next_task = ramdump.read_word(init_next_task)
+                if next_task is None:
+                    break
+                if (next_task == init_next_task and
+                            next_task != orig_init_next_task):
+                    break
+                if next_task in seen_tasks:
+                    break
+                seen_tasks.add(next_task)
+                init_next_task = next_task
+                init_thread_group = init_next_task - offset_tasks\
+                                    + offset_thread_group
+                if init_next_task == orig_init_next_task:
+                    break
+
+                if signal_struct == 0 or signal_struct is None:
+                    continue
+                adj = ramdump.read_u16(signal_struct + offset_adj)
+                if adj & 0x8000:
+                    adj = adj - 0x10000
+                rss, swap = get_rss(ramdump, task_struct)
+                if rss != 0:
+                    task_info.append([thread_task_name, thread_task_pid, rss,
+                                      swap, rss + swap, adj])
             break
 
         if (next_task == init_next_task and
@@ -87,7 +127,7 @@ def do_dump_process_memory(ramdump):
         if init_next_task == orig_init_next_task:
             break
 
-        if signal_struct == 0 or signal_struct == None :
+        if signal_struct == 0 or signal_struct is None:
             continue
 
         adj = ramdump.read_u16(signal_struct + offset_adj)
