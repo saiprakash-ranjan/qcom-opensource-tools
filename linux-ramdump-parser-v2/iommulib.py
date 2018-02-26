@@ -11,6 +11,7 @@
 
 import rb_tree
 import linux_list as llist
+from mm import phys_to_virt
 
 ARM_SMMU_DOMAIN = 0
 MSM_SMMU_DOMAIN = 1
@@ -112,29 +113,24 @@ class IommuLib(object):
             if pgtbl_ops_ptr is None or pgtbl_ops_ptr == 0:
                 return
 
-            pg_table = 0
             level = 0
             fn = self.ramdump.read_structure_field(pgtbl_ops_ptr,
                     'struct io_pgtable_ops', 'map')
             if fn == self.ramdump.address_of('av8l_fast_map'):
-                av8l_fast_io_pgtable_ptr = self.ramdump.container_of(
-                    pgtbl_ops_ptr, 'struct av8l_fast_io_pgtable', 'iop.ops')
-
-                pg_table = self.ramdump.read_structure_field(
-                    av8l_fast_io_pgtable_ptr, 'struct av8l_fast_io_pgtable',
-                    'pgd')
                 level = 3
             else:
                 arm_lpae_io_pgtable_ptr = self.ramdump.container_of(
                     pgtbl_ops_ptr, 'struct arm_lpae_io_pgtable', 'iop.ops')
 
-                pg_table = self.ramdump.read_structure_field(
-                    arm_lpae_io_pgtable_ptr, 'struct arm_lpae_io_pgtable',
-                    'pgd')
-
                 level = self.ramdump.read_structure_field(
                     arm_lpae_io_pgtable_ptr, 'struct arm_lpae_io_pgtable',
                     'levels')
+
+            pg_table = self.ramdump.read_structure_field(
+                arm_smmu_domain_ptr, 'struct arm_smmu_domain',
+                'pgtbl_cfg.arm_lpae_s1_cfg.ttbr[0]')
+
+            pg_table = phys_to_virt(self.ramdump, pg_table)
 
             domain_create = Domain(pg_table, 0, [], client_name,
                                    ARM_SMMU_DOMAIN, level)
