@@ -1,4 +1,4 @@
-# Copyright (c) 2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -117,30 +117,23 @@ class TlbDumpType_v1(TlbDumpType):
         self.ramdump = ramdump
         self.add_table_data_columns()
 
-        for nset in range(self.NumSets):
-            for nway in range(self.NumWays):
+        offset = 0
+        for nway in range(self.NumWays):
+            for nset in range(self.NumSets):
                 if start > end:
                     raise Exception('past the end of array')
 
                 output = [nway, nset]
                 line = self.read_line(start)
+                self.parse_tag_fn(output, line, nset, nway, offset)
                 output.extend(line)
                 self.tableformat.printline(output, outfile)
                 start = start + self.LineSize * 0x4
+                offset = offset + self.LineSize * 0x4
 
 class TlbDumpType_v2(TlbDumpType):
     def __init__(self):
         super(TlbDumpType_v2, self).__init__()
-        self.tableformat.addColumn('RAM')
-        self.tableformat.addColumn('TYPE')
-        self.tableformat.addColumn('PA', '{0:016x}', 16)
-        self.tableformat.addColumn('VA', '{0:016x}', 16)
-        self.tableformat.addColumn('VALID')
-        self.tableformat.addColumn('VMID', '{0:02x}', 4)
-        self.tableformat.addColumn('ASID', '{0:04x}', 4)
-        self.tableformat.addColumn('S1_MODE', '{0:01x}', 7)
-        self.tableformat.addColumn('S1_LEVEL', '{0:01x}', 8)
-        self.tableformat.addColumn('SIZE')
 
     def parse(self, start, end, ramdump, outfile):
         self.ramdump = ramdump
@@ -162,10 +155,11 @@ class TlbDumpType_v2(TlbDumpType):
                 offset = offset + 0x1000
 
         ram = 1
-        for nway in range(self.NumWaysRam0):
+        for nway in range(self.NumWaysRam1):
             offset = 0
             for nset in range(self.NumSetsRam1):
                 if start > end:
+                    print [nway,nset]
                     raise Exception('past the end of array')
 
                 output = [nway, nset]
@@ -174,11 +168,21 @@ class TlbDumpType_v2(TlbDumpType):
                 output.extend(line)
                 self.tableformat.printline(output, outfile)
                 start = start + self.LineSize * 0x4
-                offset = (offset + 0x1000)
+                offset = offset + 0x1000
 
 class L1_TLB_KRYO2XX_GOLD(TlbDumpType_v2):
     def __init__(self):
         super(L1_TLB_KRYO2XX_GOLD, self).__init__()
+        self.tableformat.addColumn('RAM')
+        self.tableformat.addColumn('TYPE')
+        self.tableformat.addColumn('PA', '{0:016x}', 16)
+        self.tableformat.addColumn('VA', '{0:016x}', 16)
+        self.tableformat.addColumn('VALID')
+        self.tableformat.addColumn('VMID', '{0:02x}', 4)
+        self.tableformat.addColumn('ASID', '{0:04x}', 4)
+        self.tableformat.addColumn('S1_MODE', '{0:01x}', 7)
+        self.tableformat.addColumn('S1_LEVEL', '{0:01x}', 8)
+        self.tableformat.addColumn('SIZE')
         self.unsupported_header_offset = 0
         self.LineSize = 4
         self.NumSetsRam0 =  0x100
@@ -274,61 +278,89 @@ class L1_TLB_A53(TlbDumpType_v1):
         self.NumSets = 0x100
         self.NumWays = 4
 
-class L1_TLB_KRYO3XX_GOLD(TlbDumpType_v2):
+class L2_TLB_KRYO3XX_GOLD(TlbDumpType_v2):
     def __init__(self):
-        super(L1_TLB_KRYO3XX_GOLD, self).__init__()
+        super(L2_TLB_KRYO3XX_GOLD, self).__init__()
+        self.tableformat.addColumn('RAM')
+        self.tableformat.addColumn('TYPE')
+        self.tableformat.addColumn('VA/IPA[48:16]', '{0:016x}', 16)
+        self.tableformat.addColumn('PA[43:12]', '{0:016x}', 16)
+        self.tableformat.addColumn('VALID')
+        self.tableformat.addColumn('NS')
+        self.tableformat.addColumn('VMID', '{0:02x}', 4)
+        self.tableformat.addColumn('ASID', '{0:04x}', 4)
+        self.tableformat.addColumn('S1_MODE', '{0:01x}', 7)
+        self.tableformat.addColumn('S1_LEVEL', '{0:01x}', 8)
+        self.tableformat.addColumn('TRANS_REGIME', '{0:01x}', 2)
+        self.tableformat.addColumn('SIZE')
         self.unsupported_header_offset = 0
-        self.LineSize = 4
+        self.LineSize = 5
         self.NumSetsRam0 =  0x100
-        self.NumSetsRam1 =  0x3c
+        self.NumSetsRam1 =  0x80
         self.NumWaysRam0 = 4
         self.NumWaysRam1 = 2
 
     def parse_tag_fn(self, output, data, nset, nway, ram, offset):
-        #tlb_type = self.parse_tlb_type(data)
-
+        tlb_type = self.parse_tlb_type(data)
+        if ram == 0:
+            tlb_type = "REG"
         s1_mode = (data[0] >> 2) & 0x3
 
         s1_level = data[0] & 0x3
 
-        pa_l = data[2] >> 14
-        pa_h =  (data[3])& 0x1fff
-        pa = (pa_h << 18 | pa_l) * 0x1000
-        pa = pa + offset
+        pa = data[3] & 0xffffffff
+        pa = pa << 12
 
         va_l = (data[1] >> 10)
-        va_h = (data[2]) & 0x3ff
-        va = ((va_h << 22) | (va_l)) * 0x1000
-        va = va + offset
+        va_h = data[2] & 0x3ff
+        va = (va_h << 22) | va_l
 
-        if ((va >> 40) & 0xff )== 0xff:
+        #Add set to the VA
+        if ram == 0:
+            va = va >> 4
+            va = va << 8
+            va = va + nset
+            va = va << 12
+        else:
+            va = va >> 3
+            va = va << 3
+            va = va << 4
+            va = va + nset
+            va = va << 12
+        if (va >> 40) == 0xff:
             va = va + 0xffff000000000000
 
         valid = (data[2] >> 11) & 0x1
 
-        vmid_1 = (data[0] >> 26) & 0x3f
+        ns = data[4] & 0x1
+        vmid_1 = (data[0] >> 26)
         vmid_2 = data[1] & 0x3ff
         vmid = (vmid_2 << 6) | vmid_1
 
         asid = (data[0] >> 10) & 0xffff
 
+        regime = (data[0] >> 4) & 0x3
+
         size = self.parse_size(data, ram, tlb_type)
         output.append(ram)
-        output.append("N/A")
-        output.append(pa)
+        output.append(tlb_type)
         output.append(va)
+        output.append(pa)
         output.append(valid)
+        output.append(ns)
         output.append(vmid)
         output.append(asid)
         output.append(s1_mode)
         output.append(s1_level)
+        output.append(regime)
         output.append(size)
 
     def parse_tlb_type(self, data):
-        type_num = (data[3] >> 20) & 0x1
+        type_num = (data[4] >> 17) & 0x1
         if type_num == 0x0:
             s1_level = data[0] & 0x3
-            if s1_level == 0x3:
+            s1_mode = (data[0] >> 2) & 0x3
+            if s1_mode == 0x1 and s1_level == 0x2:
                 return "IPA"
             else:
                 return "REG"
@@ -358,43 +390,106 @@ class L1_TLB_KRYO3XX_GOLD(TlbDumpType_v2):
             else:
                 return "1GB"
 
-class L1_TLB_KRYO3XX_SILVER(TlbDumpType_v1):
+class L2_TLB_KRYO3XX_SILVER(TlbDumpType_v1):
     def __init__(self):
-        super(L1_TLB_KRYO3XX_SILVER, self).__init__()
+        super(L2_TLB_KRYO3XX_SILVER, self).__init__()
+        self.tableformat.addColumn('Type')
+        self.tableformat.addColumn('Valid')
+        self.tableformat.addColumn('NS')
+        self.tableformat.addColumn('ASID')
+        self.tableformat.addColumn('VMID')
+        self.tableformat.addColumn('VA/IPA', '{0:016x}', 16)
+        self.tableformat.addColumn('PA', '{0:016x}', 16)
+        self.tableformat.addColumn('DBM')
         self.unsupported_header_offset = 0
-        self.LineSize = 4
-        self.NumSets = 0x100
+        self.LineSize = 5
+        self.NumSets = 0x120
         self.NumWays = 4
 
+    def parse_tag_fn(self, output, data, nset, nway, offset):
+        # data[0-2] is tag
+        # data[3-4] is data
+        if offset >= 0x5500:
+            type = "IPA"
+        elif offset >= 0x5000:
+            type = "WALK"
+        else:
+            type = "MAIN"
+
+        valid = data[0] & 0x1
+        ns          = (data[0] >> 1) & 0x1
+        asid        = (data[0] >> 2) & 0xffff
+        vmid        = (data[0] >> 18) & 0xffff
+        if type is "MAIN":
+            size        = (data[1] >> 2) & 0x7
+            nG          = (data[1] >> 5) & 0x1
+            ap          = (data[1] >> 6) & 0x7
+            s2ap        = (data[1] >> 9) & 0x3
+            domain      = (data[1] >> 11) & 0xf
+            s1_size     = (data[1] >> 15) & 0x7
+            addr_sign   = (data[1] >> 18) & 0x1
+            va_l        = (data[1] >> 19) & 0x1fff
+            va_h        = data[2] & 0x7FFF
+            va          = (va_h << 13) | va_l
+            dbm         = (data[2] >> 15) & 0x1
+            parity      = (data[2] >> 16) & 0x3
+            pa_l = data[3] >> 17
+            pa_h = data[4] & 0x1fff
+            pa = (pa_h << 15) | pa_l
+        elif type is "WALK":
+            dbm = 0
+            va_l = (data[1] >> 14)
+            va_h = (data[2]) & 0x3f
+            va = (va_h << 18) | va_l
+            pa_l = data[3] >> 13
+            pa_h = data[4] & 0x7ff
+            pa = (pa_h << 19) | pa_l
+        else:
+              asid = 0
+              dbm = (data[0] >> 9) & 0x1
+              va = (data[1] >> 2) & 0xffffff
+              pa_l = (data[3] >> 10)
+              pa_h = data[4] & 0x3f
+              pa = (pa_h << 22) | pa_l
+
+        output.append(type)
+        output.append(valid)
+        output.append(ns)
+        output.append(asid)
+        output.append(vmid)
+        output.append(va)
+        output.append(pa)
+        output.append(dbm)
+
 # "sdm845"
-lookuptable[("sdm845", 0x20, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm845", 0x21, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm845", 0x22, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm845", 0x23, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm845", 0x24, 0x14)] = L1_TLB_KRYO3XX_GOLD()
-lookuptable[("sdm845", 0x25, 0x14)] = L1_TLB_KRYO3XX_GOLD()
-lookuptable[("sdm845", 0x26, 0x14)] = L1_TLB_KRYO3XX_GOLD()
-lookuptable[("sdm845", 0x27, 0x14)] = L1_TLB_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x120, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x121, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x122, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x123, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm845", 0x124, 0x14)] = L2_TLB_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x125, 0x14)] = L2_TLB_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x126, 0x14)] = L2_TLB_KRYO3XX_GOLD()
+lookuptable[("sdm845", 0x127, 0x14)] = L2_TLB_KRYO3XX_GOLD()
 
 # "sdm670"
-lookuptable[("sdm670", 0x20, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm670", 0x21, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm670", 0x22, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm670", 0x23, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm670", 0x24, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm670", 0x25, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm670", 0x26, 0x14)] = L1_TLB_KRYO3XX_GOLD()
-lookuptable[("sdm670", 0x27, 0x14)] = L1_TLB_KRYO3XX_GOLD()
+lookuptable[("sdm670", 0x120, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x121, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x122, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x123, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x124, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x125, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm670", 0x126, 0x14)] = L2_TLB_KRYO3XX_GOLD()
+lookuptable[("sdm670", 0x127, 0x14)] = L2_TLB_KRYO3XX_GOLD()
 
 # "qcs605"
-lookuptable[("qcs605", 0x20, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("qcs605", 0x21, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("qcs605", 0x22, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("qcs605", 0x23, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("qcs605", 0x24, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("qcs605", 0x25, 0x14)] = L1_TLB_KRYO3XX_SILVER()
-lookuptable[("qcs605", 0x26, 0x14)] = L1_TLB_KRYO3XX_GOLD()
-lookuptable[("qcs605", 0x27, 0x14)] = L1_TLB_KRYO3XX_GOLD()
+lookuptable[("qcs605", 0x120, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("qcs605", 0x121, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("qcs605", 0x122, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("qcs605", 0x123, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("qcs605", 0x124, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("qcs605", 0x125, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("qcs605", 0x126, 0x14)] = L2_TLB_KRYO3XX_GOLD()
+lookuptable[("qcs605", 0x127, 0x14)] = L2_TLB_KRYO3XX_GOLD()
 
 # "msm8998"
 lookuptable[("8998", 0x20, 0x14)] = L1_TLB_A53()
