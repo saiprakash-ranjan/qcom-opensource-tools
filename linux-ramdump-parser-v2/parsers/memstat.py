@@ -178,11 +178,16 @@ class MemStats(RamParser):
             mem_pool = zram_meta + self.ramdump.field_offset\
                                         ('struct zram_meta','mem_pool')
             mem_pool = self.ramdump.read_word(mem_pool)
-            page_allocated = mem_pool + self.ramdump.field_offset\
-                                        ('struct zs_pool','pages_allocated')
-            stat_val = self.ramdump.read_u64(page_allocated)
-            stat_val = self.pages_to_mb(stat_val)
-        else :
+            if mem_pool is None:
+                stat_val = 0
+            else:
+                page_allocated = mem_pool + self.ramdump.field_offset(
+                                'struct zs_pool', 'pages_allocated')
+                stat_val = self.ramdump.read_u64(page_allocated)
+                if stat_val is None:
+                    stat_val = 0
+                stat_val = self.pages_to_mb(stat_val)
+        else:
             zram_devices_word = self.ramdump.read_word('zram_devices')
             if zram_devices_word is not None:
                 zram_devices_stat_offset = self.ramdump.field_offset(
