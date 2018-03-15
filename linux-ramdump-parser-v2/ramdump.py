@@ -1030,10 +1030,16 @@ class RamDump():
                 startup_script.write(
                      'menu.reprogram C:\\T32\\demo\\arm64\\kernel\\linux\\linux-3.x\\linux.men\n'.encode('ascii', 'ignore'))
             else:
-                startup_script.write(
-                    'task.config c:\\t32\\demo\\arm\\kernel\\linux\\linux.t32\n'.encode('ascii', 'ignore'))
-                startup_script.write(
-                    'menu.reprogram c:\\t32\\demo\\arm\\kernel\\linux\\linux.men\n'.encode('ascii', 'ignore'))
+                if self.kernel_version > (3, 0, 0):
+                    startup_script.write(
+                        'task.config c:\\t32\\demo\\arm\\kernel\\linux\\linux-3.x\\linux3.t32\n'.encode('ascii', 'ignore'))
+                    startup_script.write(
+                        'menu.reprogram c:\\t32\\demo\\arm\\kernel\\linux\\linux-3.x\\linux.men\n'.encode('ascii', 'ignore'))
+                else:
+                    startup_script.write(
+                        'task.config c:\\t32\\demo\\arm\\kernel\\linux\\linux.t32\n'.encode('ascii', 'ignore'))
+                    startup_script.write(
+                        'menu.reprogram c:\\t32\\demo\\arm\\kernel\\linux\\linux.men\n'.encode('ascii', 'ignore'))
         else:
             if self.arm64:
                 startup_script.write(
@@ -1041,10 +1047,16 @@ class RamDump():
                 startup_script.write(
                     'menu.reprogram /opt/t32/demo/arm64/kernel/linux/linux-3.x/linux.men\n'.encode('ascii', 'ignore'))
             else:
-                startup_script.write(
-                    'task.config /opt/t32/demo/arm/kernel/linux/linux.t32\n'.encode('ascii', 'ignore'))
-                startup_script.write(
-                    'menu.reprogram /opt/t32/demo/arm/kernel/linux/linux.men\n'.encode('ascii', 'ignore'))
+                if self.kernel_version > (3, 0, 0):
+                    startup_script.write(
+                        'task.config /opt/t32/demo/arm/kernel/linux/linux-3.x/linux3.t32\n'.encode('ascii', 'ignore'))
+                    startup_script.write(
+                        'menu.reprogram /opt/t32/demo/arm/kernel/linux/linux-3.x/linux.men\n'.encode('ascii', 'ignore'))
+                else:
+                    startup_script.write(
+                        'task.config /opt/t32/demo/arm/kernel/linux/linux.t32\n'.encode('ascii', 'ignore'))
+                    startup_script.write(
+                        'menu.reprogram /opt/t32/demo/arm/kernel/linux/linux.men\n'.encode('ascii', 'ignore'))
 
         for mod_tbl_ent in self.module_table.module_table:
             mod_sym_path = mod_tbl_ent.get_sym_path()
