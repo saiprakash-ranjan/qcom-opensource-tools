@@ -443,11 +443,11 @@ class BoardSDM845(Board):
         self.wdog_addr = 0x146BF658
         self.imem_file_name = 'OCIMEM.BIN'
 
-class BoardSDM670(Board):
+class BoardSDM710(Board):
     def __init__(self, socid):
-        super(BoardSDM670, self).__init__()
+        super(BoardSDM710, self).__init__()
         self.socid = socid
-        self.board_num = "sdm670"
+        self.board_num = "sdm710"
         self.cpu = 'CORTEXA53'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6000000
@@ -771,8 +771,9 @@ boards.append(BoardSDM845(socid=321))
 boards.append(BoardSDM855(socid=339))
 boards.append(BoardSDX20(socid=333))
 
-boards.append(BoardSDM670(socid=336))
-boards.append(BoardSDM670(socid=337))
+boards.append(BoardSDM710(socid=336))
+boards.append(BoardSDM710(socid=337))
+boards.append(BoardSDM710(socid=360))
 
 boards.append(BoardQCS605(socid=347))
 
