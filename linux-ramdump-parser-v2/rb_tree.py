@@ -10,7 +10,6 @@
 # GNU General Public License for more details.
 
 from print_out import print_out_str
-import pdb
 
 """
 struct rb_node
@@ -40,7 +39,6 @@ class RbTree(object):
         parent_color = self.rd.read_structure_field(
                             node, 'struct rb_node', '__rb_parent_color')
         if  parent_color is None:
-            pdb.set_trace()
             self.logger.error("struct rb_node@0x{:x}: Memory access failed".format(node))
             return 0x0
 
@@ -49,7 +47,6 @@ class RbTree(object):
     def __rb_left(self, node):
         child = self.rd.read_structure_field(node, 'struct rb_node', 'rb_left')
         if child is None:
-            pdb.set_trace()
             self.logger.error("struct rb_node@0x{:x}: Memory access failed".format(node))
             return 0x0
 
@@ -58,7 +55,6 @@ class RbTree(object):
     def __rb_right(self, node):
         child = self.rd.read_structure_field(node, 'struct rb_node', 'rb_right')
         if child is None:
-            pdb.set_trace()
             self.logger.error("struct rb_node@0x{:x}: Memory access failed".format(node))
             return 0x0
 
@@ -140,7 +136,6 @@ class RbTree(object):
 
     class RbTreeIter(object):
         def __init__(self, rbtree):
-            #pdb.set_trace()
             self.rbtree = rbtree
             node = rbtree.rd.read_structure_field(
                         rbtree.rb_root, 'struct rb_root', 'rb_node')

@@ -371,6 +371,7 @@ class Board450(Board):
         self.phys_offset = 0x40000000
         self.imem_start = 0x8600000
         self.wdog_addr = 0x8600658
+        self.kaslr_addr = 0x86006d0
         self.imem_file_name = 'OCIMEM.BIN'
 
 class Board8917(Board):
@@ -435,6 +436,7 @@ class BoardSDM845(Board):
         self.cpu = 'CORTEXA53'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6000000
+        self.smem_addr_buildinfo = 0x6007210
         self.phys_offset = 0x80000000
         self.imem_start = 0x14680000
         self.kaslr_addr = 0x146bf6d0
@@ -721,6 +723,7 @@ boards.append(Board8992(socid=252))
 boards.append(Board8996(socid=246))
 boards.append(Board8996(socid=291))
 boards.append(Board8996(socid=315))
+boards.append(Board8996(socid=316))
 
 boards.append(Board8952(socid=264))
 
