@@ -96,6 +96,8 @@ class MemStats(RamParser):
         offset_total_allocated = \
             self.ramdump.field_offset(
                 'struct ion_heap', 'total_allocated')
+        if offset_total_allocated is None:
+            return "ion buffer debugging change is not there in this kernel"
         size = self.ramdump.sizeof(
                 '((struct ion_heap *)0x0)->total_allocated')
         if self.ramdump.arm64:
@@ -140,19 +142,26 @@ class MemStats(RamParser):
            #others
            other_mem = self.calculate_vm_stat()
         else:
-           # Free Memory
-           total_free = self.ramdump.read_word('vm_zone_stat[NR_FREE_PAGES]')
-           total_free = self.pages_to_mb(total_free)
+            # Free Memory
+            total_free = self.ramdump.read_word('vm_zone_stat[NR_FREE_PAGES]')
+            total_free = self.pages_to_mb(total_free)
 
-           # slab Memory
-           slab_rec = \
-               self.ramdump.read_word('vm_zone_stat[NR_SLAB_RECLAIMABLE]')
-           slab_unrec = \
-               self.ramdump.read_word('vm_zone_stat[NR_SLAB_UNRECLAIMABLE]')
-           total_slab = self.pages_to_mb(slab_rec + slab_unrec)
-           #others
-           other_mem = self.calculate_vm_node_zone_stat()
-           cached = self.calculate_cached()
+            # slab Memory
+            if (self.ramdump.kernel_version >= (4, 14)):
+                slab_rec = self.ramdump.read_word(
+                   'vm_node_stat[NR_SLAB_RECLAIMABLE]')
+                slab_unrec = self.ramdump.read_word(
+                   'vm_node_stat[NR_SLAB_UNRECLAIMABLE]')
+            else:
+                slab_rec = self.ramdump.read_word(
+                        'vm_zone_stat[NR_SLAB_RECLAIMABLE]')
+                slab_unrec = self.ramdump.read_word(
+                        'vm_zone_stat[NR_SLAB_UNRECLAIMABLE]')
+
+            total_slab = self.pages_to_mb(slab_rec + slab_unrec)
+            # others
+            other_mem = self.calculate_vm_node_zone_stat()
+            cached = self.calculate_cached()
 
         # ion memory
         ion_mem = self.calculate_ionmem()
@@ -166,17 +175,19 @@ class MemStats(RamParser):
             kgsl_memory = 0
 
         # zcompressed ram
-        if self.ramdump.kernel_version >= (4,4) :
+        if self.ramdump.kernel_version >= (4, 14):
+            stat_val = 0
+        elif self.ramdump.kernel_version >= (4, 4):
             zram_index_idr = self.ramdump.read_word('zram_index_idr')
-            idr_layer_ary_offset = self.ramdump.field_offset\
-                                        ('struct idr_layer','ary')
+            idr_layer_ary_offset = self.ramdump.field_offset(
+                        'struct idr_layer', 'ary')
             idr_layer_ary = self.ramdump.read_word(zram_index_idr +
                                                    idr_layer_ary_offset)
-            zram_meta = idr_layer_ary + self.ramdump.field_offset\
-                                            ('struct zram','meta')
+            zram_meta = idr_layer_ary + self.ramdump.field_offset(
+                            'struct zram', 'meta')
             zram_meta = self.ramdump.read_word(zram_meta)
-            mem_pool = zram_meta + self.ramdump.field_offset\
-                                        ('struct zram_meta','mem_pool')
+            mem_pool = zram_meta + self.ramdump.field_offset(
+                        'struct zram_meta', 'mem_pool')
             mem_pool = self.ramdump.read_word(mem_pool)
             if mem_pool is None:
                 stat_val = 0
