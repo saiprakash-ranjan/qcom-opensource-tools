@@ -882,6 +882,12 @@ def get_wdog_timing(ramdump):
         cpu_online_bits = ramdump.read_word('__cpu_online_mask')
     else:
         cpu_online_bits = ramdump.read_word('cpu_online_bits')
+    if (ramdump.kernel_version >= (4, 9, 0)):
+        cpu_isolated_bits = ramdump.read_word('__cpu_isolated_mask')
+    elif (ramdump.kernel_version >= (4, 4, 0)):
+        cpu_isolated_bits = ramdump.read_word('cpu_isolated_bits')
+    else:
+        cpu_isolated_bits = 0
     wdog_task = ramdump.read_structure_field(
         wdog_data_addr, 'struct msm_watchdog_data', 'watchdog_task')
     wdog_task_state = ramdump.read_structure_field(
@@ -914,7 +920,7 @@ def get_wdog_timing(ramdump):
             wdog_task_cpu, ns_to_sec(wdog_task_arrived)))
         print_out_str("CPUs responded to pet(alive_mask): {0:08b}".format(
             wdog_alive_mask))
-        alive_cpus = wdog_alive_mask | (~cpu_online_bits)
+        alive_cpus = wdog_alive_mask | (~cpu_online_bits) | cpu_isolated_bits
         for i in range(0, ramdump.get_num_cpus()):
             if (alive_cpus & 1):
                 alive_cpus = alive_cpus >> 1
@@ -936,6 +942,7 @@ def get_wdog_timing(ramdump):
             print_out_str('Current jiffies crossed pet_timer expires jiffies')
 
     print_out_str('CPU online bits: {0:b}'.format(cpu_online_bits))
+    print_out_str('CPU isolated bits: {0:b}'.format(cpu_isolated_bits))
     print_out_str('pet_timer_expires: {0}'.format(pet_timer_expires))
     print_out_str('Current jiffies  : {0}'.format(jiffies))
     print_out_str(
