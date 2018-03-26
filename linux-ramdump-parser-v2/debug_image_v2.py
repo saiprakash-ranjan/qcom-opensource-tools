@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -82,7 +82,7 @@ client_types = [
     ('MSM_DUMP_DATA_DCC_SRAM', 'parse_dcc_sram'),
     ('MSM_DUMP_DATA_TMC_ETF', 'parse_qdss_common'),
     ('MSM_DUMP_DATA_TMC_REG', 'parse_qdss_common'),
-    ('MSM_DUMP_DATA_L2_TLB', 'parse_l2_tlb'),
+    ('MSM_DUMP_DATA_L2_TLB', 'parse_tlb_common'),
     ('MSM_DUMP_DATA_LLC_CACHE', 'parse_system_cache_common'),
     ('MSM_DUMP_DATA_MISC', 'parse_sysdbg_regs'),
 ]
@@ -314,7 +314,6 @@ class DebugImage_v2():
             print_out_str('!!! Unhandled exception while running {0}'.format(client_name))
             print_out_exception()
         outfile.close()
-
 
     def ftrace_field_func(self, common_list, ram_dump):
         name_offset = ram_dump.field_offset('struct ftrace_event_field', 'name')
@@ -674,8 +673,9 @@ class DebugImage_v2():
             client.MSM_DUMP_DATA_LOG_BUF] = 'MSM_DUMP_DATA_LOG_BUF'
         self.dump_data_id_lookup_table[
             client.MSM_DUMP_DATA_LOG_BUF_FIRST_IDX] = 'MSM_DUMP_DATA_LOG_BUF_FIRST_IDX'
-        self.dump_data_id_lookup_table[
-            client.MSM_DUMP_DATA_L2_TLB] = 'MSM_DUMP_DATA_L2_TLB'
+	for i in range(0, cpus):
+		self.dump_data_id_lookup_table[
+		    client.MSM_DUMP_DATA_L2_TLB + i] = 'MSM_DUMP_DATA_L2_TLB'
 
         if not ram_dump.minidump:
             dump_table_ptr_offset = ram_dump.field_offset(
