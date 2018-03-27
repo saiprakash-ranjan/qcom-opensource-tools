@@ -331,6 +331,7 @@ class Board8937(Board):
         self.smem_addr = 0x6300000
         self.phys_offset = 0x40000000
         self.imem_start = 0x8600000
+        self.kaslr_addr = 0x86006d0
         self.wdog_addr = 0x8600658
         self.imem_file_name = 'OCIMEM.BIN'
 
