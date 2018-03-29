@@ -14,18 +14,25 @@ from parser_util import register_parser, RamParser, cleanupString
 
 
 def do_dump_process_memory(ramdump):
-    vmstat_names = [
-        "NR_FREE_PAGES", "NR_SLAB_RECLAIMABLE",
-        "NR_SLAB_UNRECLAIMABLE", "NR_SHMEM"]
-    vmstat_data = {}
-    if(ramdump.kernel_version >= (4,9,0)):
-        vmstats_addr = ramdump.address_of('vm_zone_stat')
+    if ramdump.kernel_version < (4, 9):
+        total_free = ramdump.read_word('vm_stat[NR_FREE_PAGES]')
+        slab_rec = ramdump.read_word('vm_stat[NR_SLAB_RECLAIMABLE]')
+        slab_unrec = ramdump.read_word('vm_stat[NR_SLAB_UNRECLAIMABLE]')
+        total_shmem = ramdump.read_word('vm_stat[NR_SHMEM]')
     else:
-        vmstats_addr = ramdump.address_of('vm_stat')
-    for x in vmstat_names:
-        i = ramdump.gdbmi.get_value_of(x)
-        vmstat_data[x] = ramdump.read_word(
-                ramdump.array_index(vmstats_addr, 'atomic_long_t', i))
+        total_free = ramdump.read_word('vm_zone_stat[NR_FREE_PAGES]')
+        # slab memory
+        if ramdump.kernel_version >= (4, 14):
+            slab_rec = ramdump.read_word('vm_node_stat[NR_SLAB_RECLAIMABLE]')
+            slab_unrec = ramdump.read_word(
+                            'vm_node_stat[NR_SLAB_UNRECLAIMABLE]')
+        else:
+            slab_rec = ramdump.read_word('vm_zone_stat[NR_SLAB_RECLAIMABLE]')
+            slab_unrec = ramdump.read_word(
+                            'vm_zone_stat[NR_SLAB_UNRECLAIMABLE]')
+        total_shmem = ramdump.read_word('vm_node_stat[NR_SHMEM]')
+
+    total_slab = slab_rec + slab_unrec
     total_mem = ramdump.read_word('totalram_pages') * 4
     offset_tasks = ramdump.field_offset('struct task_struct', 'tasks')
     offset_comm = ramdump.field_offset('struct task_struct', 'comm')
@@ -44,24 +51,17 @@ def do_dump_process_memory(ramdump):
     offset_thread_group = ramdump.field_offset(
         'struct task_struct', 'thread_group')
     memory_file = ramdump.open_file('memory.txt')
-    total_slab = (
-        vmstat_data["NR_SLAB_RECLAIMABLE"] +
-        vmstat_data["NR_SLAB_UNRECLAIMABLE"]) * 4
     memory_file.write('Total RAM: {0:,}kB\n'.format(total_mem))
     memory_file.write('Total free memory: {0:,}kB({1:.1f}%)\n'.format(
-        vmstat_data["NR_FREE_PAGES"] * 4,
-        (100.0 * vmstat_data["NR_FREE_PAGES"] * 4) / total_mem))
+            total_free * 4, (100.0 * total_free * 4) / total_mem))
     memory_file.write('Slab reclaimable: {0:,}kB({1:.1f}%)\n'.format(
-        vmstat_data["NR_SLAB_RECLAIMABLE"] * 4,
-        (100.0 * vmstat_data["NR_SLAB_RECLAIMABLE"] * 4) / total_mem))
+            slab_rec * 4, (100.0 * slab_rec * 4) / total_mem))
     memory_file.write('Slab unreclaimable: {0:,}kB({1:.1f}%)\n'.format(
-        vmstat_data["NR_SLAB_UNRECLAIMABLE"] * 4,
-        (100.0 * vmstat_data["NR_SLAB_UNRECLAIMABLE"] * 4) / total_mem))
+            slab_unrec * 4, (100.0 * slab_unrec * 4) / total_mem))
     memory_file.write('Total Slab memory: {0:,}kB({1:.1f}%)\n'.format(
-        total_slab, (100.0 * total_slab) / total_mem))
+            total_slab * 4, (100.0 * total_slab * 4) / total_mem))
     memory_file.write('Total SHMEM: {0:,}kB({1:.1f}%)\n\n'.format(
-        vmstat_data["NR_SHMEM"] * 4,
-        (100.0 * vmstat_data["NR_SHMEM"] * 4) / total_mem))
+        total_shmem * 4, (100.0 * total_shmem * 4) / total_mem))
     while True:
         task_struct = init_thread_group - offset_thread_group
         next_thread_comm = task_struct + offset_comm
