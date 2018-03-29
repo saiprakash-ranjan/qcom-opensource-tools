@@ -84,8 +84,12 @@ class IommuLib(object):
                 'struct iommu_group', 'devices')
             dev = self.ramdump.read_structure_field(
                 dev_list, 'struct list_head', 'next')
-            client_name = self.ramdump.read_structure_cstring(
-                dev, 'struct iommu_device', 'name')
+            if self.ramdump.kernel_version >= (4, 14):
+                client_name = self.ramdump.read_structure_cstring(
+                    dev, 'struct group_device', 'name')
+            else:
+                client_name = self.ramdump.read_structure_cstring(
+                    dev, 'struct iommu_device', 'name')
         else:
             """Older kernel versions have the field 'dev'
            instead of 'iommu_group'.
