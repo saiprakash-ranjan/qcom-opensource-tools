@@ -471,15 +471,15 @@ lookuptable[("sdm845", 0x125, 0x14)] = L2_TLB_KRYO3XX_GOLD()
 lookuptable[("sdm845", 0x126, 0x14)] = L2_TLB_KRYO3XX_GOLD()
 lookuptable[("sdm845", 0x127, 0x14)] = L2_TLB_KRYO3XX_GOLD()
 
-# "sdm670"
-lookuptable[("sdm670", 0x120, 0x14)] = L2_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm670", 0x121, 0x14)] = L2_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm670", 0x122, 0x14)] = L2_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm670", 0x123, 0x14)] = L2_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm670", 0x124, 0x14)] = L2_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm670", 0x125, 0x14)] = L2_TLB_KRYO3XX_SILVER()
-lookuptable[("sdm670", 0x126, 0x14)] = L2_TLB_KRYO3XX_GOLD()
-lookuptable[("sdm670", 0x127, 0x14)] = L2_TLB_KRYO3XX_GOLD()
+# "sdm710"
+lookuptable[("sdm710", 0x120, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm710", 0x121, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm710", 0x122, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm710", 0x123, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm710", 0x124, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm710", 0x125, 0x14)] = L2_TLB_KRYO3XX_SILVER()
+lookuptable[("sdm710", 0x126, 0x14)] = L2_TLB_KRYO3XX_GOLD()
+lookuptable[("sdm710", 0x127, 0x14)] = L2_TLB_KRYO3XX_GOLD()
 
 # "qcs605"
 lookuptable[("qcs605", 0x120, 0x14)] = L2_TLB_KRYO3XX_SILVER()
