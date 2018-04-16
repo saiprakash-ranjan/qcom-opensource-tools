@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2013, 2015, 2017 The Linux Foundation. All rights reserved.
+# Copyright (c) 2012-2013, 2015, 2017-2018 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -12,6 +12,7 @@
 import string
 from print_out import print_out_str
 from parser_util import register_parser, RamParser, cleanupString
+
 
 def find_panic(ramdump, addr_stack, thread_task_name):
     if ramdump.arm64:
@@ -56,6 +57,7 @@ def dump_thread_group(ramdump, thread_group, task_out, check_for_panic=0):
     offset_pid = ramdump.field_offset('struct task_struct', 'pid')
     offset_stack = ramdump.field_offset('struct task_struct', 'stack')
     offset_state = ramdump.field_offset('struct task_struct', 'state')
+    offset_prio = ramdump.field_offset('struct task_struct', 'prio')
     offset_exit_state = ramdump.field_offset(
         'struct task_struct', 'exit_state')
     orig_thread_group = thread_group
@@ -65,13 +67,17 @@ def dump_thread_group(ramdump, thread_group, task_out, check_for_panic=0):
         next_thread_start = thread_group - offset_thread_group
         next_thread_comm = next_thread_start + offset_comm
         next_thread_pid = next_thread_start + offset_pid
+        next_thread_prio = next_thread_start + offset_prio
         next_thread_stack = next_thread_start + offset_stack
         next_thread_state = next_thread_start + offset_state
         next_thread_exit_state = next_thread_start + offset_exit_state
         next_thread_info = ramdump.get_thread_info_addr(next_thread_start)
         thread_task_name = cleanupString(
             ramdump.read_cstring(next_thread_comm, 16))
-        if thread_task_name is None:
+        if thread_task_name is None or thread_task_name == "":
+            return
+        thread_task_prio = ramdump.read_int(next_thread_prio)
+        if thread_task_prio is None:
             return
         thread_task_pid = ramdump.read_int(next_thread_pid)
         if thread_task_pid is None:
@@ -96,8 +102,11 @@ def dump_thread_group(ramdump, thread_group, task_out, check_for_panic=0):
                 task_out.write(
                     '=====================================================\n')
                 first = 1
-            task_out.write('    Task name: {0} pid: {1} cpu: {2}\n    state: 0x{3:x} exit_state: 0x{4:x} stack base: 0x{5:x}\n'.format(
-                thread_task_name, thread_task_pid, task_cpu, task_state, task_exit_state, addr_stack))
+            task_out.write('    Task name: {0} pid: {1} cpu: {2} start: {'
+                           '6:x}\n    state: 0x{3:x} exit_state: 0x{4:x}'
+                           ' stack base: 0x{5:x} Prio: {7}\n'.format(
+                thread_task_name, thread_task_pid, task_cpu, task_state,
+                task_exit_state, addr_stack, next_thread_start, thread_task_prio))
             task_out.write('    Stack:\n')
             ramdump.unwind.unwind_backtrace(
                  ramdump.thread_saved_sp(next_thread_start),
@@ -127,14 +136,9 @@ def dump_thread_group(ramdump, thread_group, task_out, check_for_panic=0):
 
 def do_dump_stacks(ramdump, check_for_panic=0):
     offset_tasks = ramdump.field_offset('struct task_struct', 'tasks')
-    offset_comm = ramdump.field_offset('struct task_struct', 'comm')
-    offset_stack = ramdump.field_offset('struct task_struct', 'stack')
+    prev_offset = ramdump.field_offset('struct list_head','prev')
     offset_thread_group = ramdump.field_offset(
         'struct task_struct', 'thread_group')
-    offset_pid = ramdump.field_offset('struct task_struct', 'pid')
-    offset_state = ramdump.field_offset('struct task_struct', 'state')
-    offset_exit_state = ramdump.field_offset(
-        'struct task_struct', 'exit_state')
     init_addr = ramdump.address_of('init_task')
     init_next_task = init_addr + offset_tasks
     orig_init_next_task = init_next_task
@@ -149,7 +153,38 @@ def do_dump_stacks(ramdump, check_for_panic=0):
                           task_out, check_for_panic)
         next_task = ramdump.read_word(init_next_task)
         if next_task is None:
-            return
+            init_next_task = init_addr + offset_tasks
+            init_next_task = init_next_task + prev_offset
+            init_next_task = ramdump.read_word(init_next_task)
+            init_thread_group = init_next_task - offset_tasks \
+                                + offset_thread_group
+            while True:
+                dump_thread_group(ramdump, init_thread_group,
+                                  task_out, check_for_panic)
+                init_next_task = init_next_task + prev_offset
+                orig_init_next_task = init_next_task
+                next_task = ramdump.read_word(init_next_task)
+                if next_task is None:
+                    break
+
+                if (next_task == init_next_task) and (next_task !=
+                                    orig_init_next_task):
+                    if not check_for_panic:
+                        task_out.write(
+                            '!!! Cycle in task list! the list is corrupt!\n')
+                        break
+                if (next_task in seen_tasks):
+                    break
+
+                seen_tasks.append(next_task)
+                init_next_task = next_task
+                init_thread_group = init_next_task - offset_tasks\
+                                    + offset_thread_group
+                if init_next_task == orig_init_next_task:
+                    break
+
+            task_out.write('\n\n!!!Some task might be missing in task.txt')
+            break
 
         if (next_task == init_next_task) and (next_task != orig_init_next_task):
             if not check_for_panic:
@@ -177,9 +212,11 @@ def do_dump_task_timestamps(ramdump):
         'struct task_struct', 'thread_group')
     offset_pid = ramdump.field_offset('struct task_struct', 'pid')
     init_addr = ramdump.address_of('init_task')
+    prev_offset = ramdump.field_offset('struct list_head','prev')
     init_next_task = init_addr + offset_tasks
     orig_init_next_task = init_next_task
     init_thread_group = init_addr + offset_thread_group
+    count = 0
     seen_tasks = []
     task_out = []
     no_of_cpus = ramdump.get_num_cpus()
@@ -189,10 +226,40 @@ def do_dump_task_timestamps(ramdump):
         task_out.append(task_file)
     while True:
         ret = dump_thread_group_timestamps(ramdump, init_thread_group,t)
-        if ret == False:
-            break
+        if ret is False:
+            count = 1
         next_task = ramdump.read_word(init_next_task)
         if next_task is None:
+            init_next_task = init_addr + offset_tasks
+            init_next_task = init_next_task + prev_offset
+            init_next_task = ramdump.read_word(init_next_task)
+            init_thread_group = init_next_task - offset_tasks \
+                                + offset_thread_group
+            while True:
+                ret = dump_thread_group_timestamps(ramdump,
+                                init_thread_group, t)
+                if ret is False:
+                    count = 1
+
+                init_next_task = init_next_task + prev_offset
+                orig_init_next_task = init_next_task
+                next_task = ramdump.read_word(init_next_task)
+                next_task = ramdump.read_word(init_next_task)
+                if next_task is None:
+                    break
+                if (next_task == init_next_task) and (
+                    next_task != orig_init_next_task):
+                    break
+
+                if (next_task in seen_tasks):
+                    break
+
+                seen_tasks.append(next_task)
+
+                init_next_task = next_task
+                init_thread_group = init_next_task - offset_tasks + offset_thread_group
+                if init_next_task == orig_init_next_task:
+                    break
             break
 
         if (next_task == init_next_task) and (next_task != orig_init_next_task):
@@ -208,15 +275,21 @@ def do_dump_task_timestamps(ramdump):
         if init_next_task == orig_init_next_task:
             break
     for i in range(0, no_of_cpus):
-        t[i] = sorted(t[i],key=lambda l:l[2], reverse=True)
-        str = '{0:<17s}{1:>8s}{2:>18s}{3:>18s}{4:>18s}{5:>17s}\n'.format(
-            'Task name', 'PID', 'Exec_Started_at', 'Last_Queued_at',
-            'Total_wait_time', 'No_of_times_exec')
+        if count == 1:
+            task_out[i].write('!!!Note : Some thread may be missing\n\n')
+        t[i] = sorted(t[i], key=lambda l:l[2], reverse=True)
+        str = '{0:<17s}{1:>8s}{2:>18s}{3:>18s}{4:>18s}{5:>17s}' \
+              ' {6:>8s}\n'.format(
+                    'Task name', 'PID', 'Exec_Started_at',
+                    'Last_Queued_at', 'Total_wait_time',
+                    'No_of_times_exec', 'Prio')
         task_out[i].write(str)
         for item in t[i]:
-            str = '{0:<17s}{1:8d}{2:18.9f}{3:18.9f}{4:18.9f}{5:17d}\n'.format(
-                item[0], item[1], item[2]/1000000000.0,
-                item[3]/1000000000.0, item[4]/1000000000.0, item[5])
+            str = '{0:<17s}{1:8d}{2:18.9f}{3:18.9f}{4:18.9f}{5:17d}{6:8d}\n'\
+                    .format(
+                        item[0], item[1], item[2]/1000000000.0,
+                        item[3]/1000000000.0, item[4]/1000000000.0,
+                        item[5], item[6])
             task_out[i].write(str)
         task_out[i].close()
         print_out_str('---wrote tasks to tasks_sched_stats{0}.txt'.format(i))
@@ -228,6 +301,7 @@ def dump_thread_group_timestamps(ramdump, thread_group, t):
     offset_pid = ramdump.field_offset('struct task_struct', 'pid')
     offset_task = ramdump.field_offset('struct thread_info', 'task')
     offset_stack = ramdump.field_offset('struct task_struct', 'stack')
+    offset_prio = ramdump.field_offset('struct task_struct', 'prio')
     offset_schedinfo = ramdump.field_offset('struct task_struct', 'sched_info')
     offset_last_arrival = offset_schedinfo + ramdump.field_offset('struct sched_info', 'last_arrival')
     offset_last_queued = offset_schedinfo + ramdump.field_offset('struct sched_info', 'last_queued')
@@ -241,6 +315,7 @@ def dump_thread_group_timestamps(ramdump, thread_group, t):
         next_thread_start = thread_group - offset_thread_group
         next_thread_comm = next_thread_start + offset_comm
         next_thread_pid = next_thread_start + offset_pid
+        next_thread_prio = next_thread_start + offset_prio
         next_thread_last_arrival = next_thread_start + offset_last_arrival
         next_thread_last_queued = next_thread_start + offset_last_queued
         next_thread_pcount = next_thread_start + offset_last_pcount
@@ -255,15 +330,22 @@ def dump_thread_group_timestamps(ramdump, thread_group, t):
         thread_task_name = cleanupString(
             ramdump.read_cstring(next_thread_comm, 16))
         thread_task_pid = ramdump.read_int(next_thread_pid)
+        thread_task_prio = ramdump.read_int(next_thread_prio)
+        if thread_task_prio is None:
+            return False
         cpu_no = ramdump.get_task_cpu(next_thread_start, threadinfo)
+        if cpu_no >= ramdump.get_num_cpus():
+            return False
         if not ramdump.is_thread_info_in_task():
             thread_info_task = ramdump.read_word(threadinfo + offset_task)
             if next_thread_start != thread_info_task:
                 print_out_str('!!!! Task list or Thread info corruption\n{0}  {1}'.format(next_thread_start,thread_info_task))
                 return False
-        t[cpu_no].append([thread_task_name, thread_task_pid, ramdump.read_u64(next_thread_last_arrival),
+        t[cpu_no].append([thread_task_name, thread_task_pid,
+            ramdump.read_u64(next_thread_last_arrival),
             ramdump.read_u64(next_thread_last_queued),
-            ramdump.read_u64(next_thread_run_delay),ramdump.read_word(next_thread_pcount)])
+            ramdump.read_u64(next_thread_run_delay),ramdump.read_word(
+                next_thread_pcount),thread_task_prio])
         next_thr = ramdump.read_word(thread_group)
         if (next_thr == thread_group) and (next_thr != orig_thread_group):
             print_out_str('!!!! Cycle in thread group! The list is corrupt!\n')

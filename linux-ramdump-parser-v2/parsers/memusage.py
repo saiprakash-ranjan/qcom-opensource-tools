@@ -1,4 +1,4 @@
-# Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
+# Copyright (c) 2016-2018 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -14,22 +14,30 @@ from parser_util import register_parser, RamParser, cleanupString
 
 
 def do_dump_process_memory(ramdump):
-    vmstat_names = [
-        "NR_FREE_PAGES", "NR_SLAB_RECLAIMABLE",
-        "NR_SLAB_UNRECLAIMABLE", "NR_SHMEM"]
-    vmstat_data = {}
-    if(ramdump.kernel_version >= (4,9,0)):
-        vmstats_addr = ramdump.address_of('vm_zone_stat')
+    if ramdump.kernel_version < (4, 9):
+        total_free = ramdump.read_word('vm_stat[NR_FREE_PAGES]')
+        slab_rec = ramdump.read_word('vm_stat[NR_SLAB_RECLAIMABLE]')
+        slab_unrec = ramdump.read_word('vm_stat[NR_SLAB_UNRECLAIMABLE]')
+        total_shmem = ramdump.read_word('vm_stat[NR_SHMEM]')
     else:
-        vmstats_addr = ramdump.address_of('vm_stat')
-    for x in vmstat_names:
-        i = ramdump.gdbmi.get_value_of(x)
-        vmstat_data[x] = ramdump.read_word(
-                ramdump.array_index(vmstats_addr, 'atomic_long_t', i))
+        total_free = ramdump.read_word('vm_zone_stat[NR_FREE_PAGES]')
+        # slab memory
+        if ramdump.kernel_version >= (4, 14):
+            slab_rec = ramdump.read_word('vm_node_stat[NR_SLAB_RECLAIMABLE]')
+            slab_unrec = ramdump.read_word(
+                            'vm_node_stat[NR_SLAB_UNRECLAIMABLE]')
+        else:
+            slab_rec = ramdump.read_word('vm_zone_stat[NR_SLAB_RECLAIMABLE]')
+            slab_unrec = ramdump.read_word(
+                            'vm_zone_stat[NR_SLAB_UNRECLAIMABLE]')
+        total_shmem = ramdump.read_word('vm_node_stat[NR_SHMEM]')
+
+    total_slab = slab_rec + slab_unrec
     total_mem = ramdump.read_word('totalram_pages') * 4
     offset_tasks = ramdump.field_offset('struct task_struct', 'tasks')
     offset_comm = ramdump.field_offset('struct task_struct', 'comm')
     offset_signal = ramdump.field_offset('struct task_struct', 'signal')
+    prev_offset = ramdump.field_offset('struct list_head','prev')
     offset_adj = ramdump.field_offset('struct signal_struct', 'oom_score_adj')
     offset_thread_group = ramdump.field_offset(
         'struct task_struct', 'thread_group')
@@ -43,24 +51,17 @@ def do_dump_process_memory(ramdump):
     offset_thread_group = ramdump.field_offset(
         'struct task_struct', 'thread_group')
     memory_file = ramdump.open_file('memory.txt')
-    total_slab = (
-        vmstat_data["NR_SLAB_RECLAIMABLE"] +
-        vmstat_data["NR_SLAB_UNRECLAIMABLE"]) * 4
     memory_file.write('Total RAM: {0:,}kB\n'.format(total_mem))
     memory_file.write('Total free memory: {0:,}kB({1:.1f}%)\n'.format(
-        vmstat_data["NR_FREE_PAGES"] * 4,
-        (100.0 * vmstat_data["NR_FREE_PAGES"] * 4) / total_mem))
+            total_free * 4, (100.0 * total_free * 4) / total_mem))
     memory_file.write('Slab reclaimable: {0:,}kB({1:.1f}%)\n'.format(
-        vmstat_data["NR_SLAB_RECLAIMABLE"] * 4,
-        (100.0 * vmstat_data["NR_SLAB_RECLAIMABLE"] * 4) / total_mem))
+            slab_rec * 4, (100.0 * slab_rec * 4) / total_mem))
     memory_file.write('Slab unreclaimable: {0:,}kB({1:.1f}%)\n'.format(
-        vmstat_data["NR_SLAB_UNRECLAIMABLE"] * 4,
-        (100.0 * vmstat_data["NR_SLAB_UNRECLAIMABLE"] * 4) / total_mem))
+            slab_unrec * 4, (100.0 * slab_unrec * 4) / total_mem))
     memory_file.write('Total Slab memory: {0:,}kB({1:.1f}%)\n'.format(
-        total_slab, (100.0 * total_slab) / total_mem))
+            total_slab * 4, (100.0 * total_slab * 4) / total_mem))
     memory_file.write('Total SHMEM: {0:,}kB({1:.1f}%)\n\n'.format(
-        vmstat_data["NR_SHMEM"] * 4,
-        (100.0 * vmstat_data["NR_SHMEM"] * 4) / total_mem))
+        total_shmem * 4, (100.0 * total_shmem * 4) / total_mem))
     while True:
         task_struct = init_thread_group - offset_thread_group
         next_thread_comm = task_struct + offset_comm
@@ -72,6 +73,45 @@ def do_dump_process_memory(ramdump):
 
         next_task = ramdump.read_word(init_next_task)
         if next_task is None:
+            init_next_task = init_addr + offset_tasks
+            init_next_task = init_next_task + prev_offset
+            init_next_task = ramdump.read_word(init_next_task)
+            init_thread_group = init_next_task - offset_tasks \
+                                + offset_thread_group
+            while True:
+                init_next_task = init_next_task + prev_offset
+                orig_init_next_task = init_next_task
+                task_struct = init_thread_group - offset_thread_group
+                next_thread_comm = task_struct + offset_comm
+                thread_task_name = cleanupString(
+                    ramdump.read_cstring(next_thread_comm, 16))
+                next_thread_pid = task_struct + offset_pid
+                thread_task_pid = ramdump.read_int(next_thread_pid)
+                signal_struct = ramdump.read_word(task_struct + offset_signal)
+                next_task = ramdump.read_word(init_next_task)
+                if next_task is None:
+                    break
+                if (next_task == init_next_task and
+                            next_task != orig_init_next_task):
+                    break
+                if next_task in seen_tasks:
+                    break
+                seen_tasks.add(next_task)
+                init_next_task = next_task
+                init_thread_group = init_next_task - offset_tasks\
+                                    + offset_thread_group
+                if init_next_task == orig_init_next_task:
+                    break
+
+                if signal_struct == 0 or signal_struct is None:
+                    continue
+                adj = ramdump.read_u16(signal_struct + offset_adj)
+                if adj & 0x8000:
+                    adj = adj - 0x10000
+                rss, swap = get_rss(ramdump, task_struct)
+                if rss != 0:
+                    task_info.append([thread_task_name, thread_task_pid, rss,
+                                      swap, rss + swap, adj])
             break
 
         if (next_task == init_next_task and
@@ -87,7 +127,7 @@ def do_dump_process_memory(ramdump):
         if init_next_task == orig_init_next_task:
             break
 
-        if signal_struct == 0 or signal_struct == None :
+        if signal_struct == 0 or signal_struct is None:
             continue
 
         adj = ramdump.read_u16(signal_struct + offset_adj)

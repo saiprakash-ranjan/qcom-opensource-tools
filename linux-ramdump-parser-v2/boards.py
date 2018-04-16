@@ -331,6 +331,7 @@ class Board8937(Board):
         self.smem_addr = 0x6300000
         self.phys_offset = 0x40000000
         self.imem_start = 0x8600000
+        self.kaslr_addr = 0x86006d0
         self.wdog_addr = 0x8600658
         self.imem_file_name = 'OCIMEM.BIN'
 
@@ -372,6 +373,20 @@ class Board450(Board):
         self.imem_start = 0x8600000
         self.wdog_addr = 0x8600658
         self.kaslr_addr = 0x86006d0
+        self.imem_file_name = 'OCIMEM.BIN'
+
+class Board632(Board):
+    def __init__(self, socid):
+        super(Board632, self).__init__()
+        self.socid = socid
+        self.board_num = "632"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6300000
+        self.phys_offset = 0x40000000
+        self.imem_start = 0x8600000
+        self.kaslr_addr = 0x86006d0
+        self.wdog_addr = 0x8600658
         self.imem_file_name = 'OCIMEM.BIN'
 
 class Board8917(Board):
@@ -443,11 +458,11 @@ class BoardSDM845(Board):
         self.wdog_addr = 0x146BF658
         self.imem_file_name = 'OCIMEM.BIN'
 
-class BoardSDM670(Board):
+class BoardSDM710(Board):
     def __init__(self, socid):
-        super(BoardSDM670, self).__init__()
+        super(BoardSDM710, self).__init__()
         self.socid = socid
-        self.board_num = "sdm670"
+        self.board_num = "sdm710"
         self.cpu = 'CORTEXA53'
         self.ram_start = 0x80000000
         self.smem_addr = 0x6000000
@@ -746,6 +761,8 @@ boards.append(Board8940(socid=313))
 boards.append(Board8953(socid=293))
 boards.append(Board8953(socid=304))
 boards.append(Board450(socid=338))
+boards.append(Board632(socid=349))
+boards.append(Board632(socid=350))
 
 boards.append(Board8917(socid=303))
 boards.append(Board8917(socid=307))
@@ -771,8 +788,9 @@ boards.append(BoardSDM845(socid=321))
 boards.append(BoardSDM855(socid=339))
 boards.append(BoardSDX20(socid=333))
 
-boards.append(BoardSDM670(socid=336))
-boards.append(BoardSDM670(socid=337))
+boards.append(BoardSDM710(socid=336))
+boards.append(BoardSDM710(socid=337))
+boards.append(BoardSDM710(socid=360))
 
 boards.append(BoardQCS605(socid=347))
 
