@@ -222,12 +222,15 @@ class MmcHostInfo():
     def __init__(self, ramdump, mmc_host):
         self.ramdump = ramdump
         self.host = mmc_host
-        self.clk_gated = self.ramdump.read_bool(self.host +
-                    self.ramdump.field_offset('struct mmc_host', 'clk_gated'))
-        self.clk_requests = self.ramdump.read_int(self.host +
-                    self.ramdump.field_offset('struct mmc_host', 'clk_requests'))
-        self.clk_old = self.ramdump.read_int(self.host +
-                    self.ramdump.field_offset('struct mmc_host', 'clk_old'))
+        if (self.ramdump.field_offset('struct mmc_host', 'clk_gated')):
+            self.clk_gated = self.ramdump.read_bool(self.host +
+                        self.ramdump.field_offset('struct mmc_host', 'clk_gated'))
+            self.clk_requests = self.ramdump.read_int(self.host +
+                        self.ramdump.field_offset('struct mmc_host', 'clk_requests'))
+            self.clk_old = self.ramdump.read_int(self.host +
+                        self.ramdump.field_offset('struct mmc_host', 'clk_old'))
+        else:
+            self.clk_gated = self.clk_requests = self.clk_old = -23
 
         offset = self.ramdump.field_offset('struct mmc_host', 'err_occurred')
         if (offset):
