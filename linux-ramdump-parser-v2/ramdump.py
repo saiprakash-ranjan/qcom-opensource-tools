@@ -1397,6 +1397,9 @@ class RamDump():
         mid = (low + high) >> 1
         premid = 0
 
+        if (high == 0):
+            return ('(Do not support on this target)', 0x0)
+
         while(not(addr >= self.lookup_table[mid][0] and addr < self.lookup_table[mid + 1][0])):
 
             if(addr < self.lookup_table[mid][0]):
