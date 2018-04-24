@@ -1,4 +1,4 @@
-# Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -860,20 +860,30 @@ lookuptable[("450", 0x85, 0x14)] = L1_DCache_A53()
 lookuptable[("450", 0x86, 0x14)] = L1_DCache_A53()
 lookuptable[("450", 0x87, 0x14)] = L1_DCache_A53()
 
-# sdm839
-lookuptable[("sdm839", 0x80, 0x14)] = L1_DCache_A53()
-lookuptable[("sdm839", 0x81, 0x14)] = L1_DCache_A53()
-lookuptable[("sdm839", 0x82, 0x14)] = L1_DCache_A53()
-lookuptable[("sdm839", 0x83, 0x14)] = L1_DCache_A53()
-lookuptable[("sdm839", 0x84, 0x14)] = L1_DCache_A53()
-lookuptable[("sdm839", 0x85, 0x14)] = L1_DCache_A53()
-lookuptable[("sdm839", 0x86, 0x14)] = L1_DCache_A53()
-lookuptable[("sdm839", 0x87, 0x14)] = L1_DCache_A53()
-lookuptable[("sdm839", 0x60, 0x14)] = L1_ICache_A53()
-lookuptable[("sdm839", 0x61, 0x14)] = L1_ICache_A53()
-lookuptable[("sdm839", 0x62, 0x14)] = L1_ICache_A53()
-lookuptable[("sdm839", 0x63, 0x14)] = L1_ICache_A53()
-lookuptable[("sdm839", 0x64, 0x14)] = L1_ICache_A53()
-lookuptable[("sdm839", 0x65, 0x14)] = L1_ICache_A53()
-lookuptable[("sdm839", 0x66, 0x14)] = L1_ICache_A53()
-lookuptable[("sdm839", 0x67, 0x14)] = L1_ICache_A53()
+# 439
+lookuptable[("439", 0x80, 0x14)] = L1_DCache_A53()
+lookuptable[("439", 0x81, 0x14)] = L1_DCache_A53()
+lookuptable[("439", 0x82, 0x14)] = L1_DCache_A53()
+lookuptable[("439", 0x83, 0x14)] = L1_DCache_A53()
+lookuptable[("439", 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[("439", 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[("439", 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[("439", 0x87, 0x14)] = L1_DCache_A53()
+lookuptable[("439", 0x60, 0x14)] = L1_ICache_A53()
+lookuptable[("439", 0x61, 0x14)] = L1_ICache_A53()
+lookuptable[("439", 0x62, 0x14)] = L1_ICache_A53()
+lookuptable[("439", 0x63, 0x14)] = L1_ICache_A53()
+lookuptable[("439", 0x64, 0x14)] = L1_ICache_A53()
+lookuptable[("439", 0x65, 0x14)] = L1_ICache_A53()
+lookuptable[("439", 0x66, 0x14)] = L1_ICache_A53()
+lookuptable[("439", 0x67, 0x14)] = L1_ICache_A53()
+
+# 429
+lookuptable[("429", 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[("429", 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[("429", 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[("429", 0x87, 0x14)] = L1_DCache_A53()
+lookuptable[("429", 0x64, 0x14)] = L1_ICache_A53()
+lookuptable[("429", 0x65, 0x14)] = L1_ICache_A53()
+lookuptable[("429", 0x66, 0x14)] = L1_ICache_A53()
+lookuptable[("429", 0x67, 0x14)] = L1_ICache_A53()
