@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017, The Linux Foundation. All rights reserved.
+Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -695,7 +695,10 @@ class DumpVidc(RamParser):
 
         self.queue_info.write('\nCMD QUEUE\n=========\n')
         q_cmd = head + self.ramdump.field_offset('struct venus_hfi_device','iface_queues[0]')
-        self.read_interface_queue(q_cmd)
+        try:
+            self.read_interface_queue(q_cmd)
+        except:
+            self.queue_info.write('\n Unable to read command queue');
 
         self.queue_info.close()
 
@@ -703,7 +706,10 @@ class DumpVidc(RamParser):
 
         self.queue_info.write('\nMSG QUEUE\n=========\n')
         q_msg = head + self.ramdump.field_offset('struct venus_hfi_device','iface_queues[1]')
-        self.read_interface_queue(q_msg)
+        try:
+            self.read_interface_queue(q_msg)
+        except:
+            self.queue_info.write('\n Unable to read message queue');
 
         self.queue_info.close()
 
