@@ -69,9 +69,14 @@ class MemStats(RamParser):
         return other_mem
 
     def calculate_cached(self):
-        vmstat_file_pages = self.ramdump.read_word(
+        if self.ramdump.kernel_version >= (4, 9):
+            vmstat_file_pages = self.ramdump.read_word(
                             'vm_node_stat[NR_FILE_PAGES]')
-        cached = self.pages_to_mb(vmstat_file_pages)
+            cached = self.pages_to_mb(vmstat_file_pages)
+        else:
+            vmstat_file_pages = self.ramdump.read_word(
+                            'vm_stat[NR_FILE_PAGES]')
+            cached = self.pages_to_mb(vmstat_file_pages)
         return cached
 
     def calculate_vm_node_zone_stat(self):
@@ -161,7 +166,7 @@ class MemStats(RamParser):
             total_slab = self.pages_to_mb(slab_rec + slab_unrec)
             # others
             other_mem = self.calculate_vm_node_zone_stat()
-            cached = self.calculate_cached()
+        cached = self.calculate_cached()
 
         # ion memory
         ion_mem = self.calculate_ionmem()
@@ -179,25 +184,28 @@ class MemStats(RamParser):
             stat_val = 0
         elif self.ramdump.kernel_version >= (4, 4):
             zram_index_idr = self.ramdump.read_word('zram_index_idr')
-            idr_layer_ary_offset = self.ramdump.field_offset(
-                        'struct idr_layer', 'ary')
-            idr_layer_ary = self.ramdump.read_word(zram_index_idr +
-                                                   idr_layer_ary_offset)
-            zram_meta = idr_layer_ary + self.ramdump.field_offset(
-                            'struct zram', 'meta')
-            zram_meta = self.ramdump.read_word(zram_meta)
-            mem_pool = zram_meta + self.ramdump.field_offset(
-                        'struct zram_meta', 'mem_pool')
-            mem_pool = self.ramdump.read_word(mem_pool)
-            if mem_pool is None:
+            if zram_index_idr is None:
                 stat_val = 0
             else:
-                page_allocated = mem_pool + self.ramdump.field_offset(
-                                'struct zs_pool', 'pages_allocated')
-                stat_val = self.ramdump.read_u64(page_allocated)
-                if stat_val is None:
+                idr_layer_ary_offset = self.ramdump.field_offset(
+                            'struct idr_layer', 'ary')
+                idr_layer_ary = self.ramdump.read_word(zram_index_idr +
+                                                   idr_layer_ary_offset)
+                zram_meta = idr_layer_ary + self.ramdump.field_offset(
+                                'struct zram', 'meta')
+                zram_meta = self.ramdump.read_word(zram_meta)
+                mem_pool = zram_meta + self.ramdump.field_offset(
+                            'struct zram_meta', 'mem_pool')
+                mem_pool = self.ramdump.read_word(mem_pool)
+                if mem_pool is None:
                     stat_val = 0
-                stat_val = self.pages_to_mb(stat_val)
+                else:
+                    page_allocated = mem_pool + self.ramdump.field_offset(
+                                    'struct zs_pool', 'pages_allocated')
+                    stat_val = self.ramdump.read_u64(page_allocated)
+                    if stat_val is None:
+                        stat_val = 0
+                    stat_val = self.pages_to_mb(stat_val)
         else:
             zram_devices_word = self.ramdump.read_word('zram_devices')
             if zram_devices_word is not None:
@@ -206,6 +214,8 @@ class MemStats(RamParser):
                 stat_addr = zram_devices_word + zram_devices_stat_offset
                 stat_val = self.ramdump.read_u64(stat_addr)
                 stat_val = self.bytes_to_mb(stat_val)
+            else:
+                stat_val = 0
 
         self.out_mem_stat = out_mem_stat
         self.vmalloc_size = 0
