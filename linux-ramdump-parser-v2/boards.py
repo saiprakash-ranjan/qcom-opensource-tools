@@ -389,6 +389,20 @@ class Board632(Board):
         self.wdog_addr = 0x8600658
         self.imem_file_name = 'OCIMEM.BIN'
 
+class Board439(Board):
+    def __init__(self, socid):
+        super(Board439, self).__init__()
+        self.socid = socid
+        self.board_num = "sdm439"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6300000
+        self.phys_offset = 0x40000000
+        self.imem_start = 0x8600000
+        self.kaslr_addr = 0x86006d0
+        self.wdog_addr = 0x8600658
+        self.imem_file_name = 'OCIMEM.BIN'
+
 class Board8917(Board):
     def __init__(self, socid):
         super(Board8917, self).__init__()
@@ -796,6 +810,9 @@ boards.append(BoardQCS605(socid=347))
 
 boards.append(BoardPoorwills(socid=334))
 boards.append(BoardPoorwills(socid=335))
+
+boards.append(Board439(socid=353))
+
 
 def get_supported_boards():
     """ Called by other part of the code to get a list of boards """
