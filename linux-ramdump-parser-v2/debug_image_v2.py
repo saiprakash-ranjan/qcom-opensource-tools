@@ -131,6 +131,7 @@ class DebugImage_v2():
     def parse_scandump(self, version, start, end, client_id, ram_dump):
         scandump_file_prefix = "scandump_core"
         core_bin_prefix = "core"
+        chipset = ram_dump.hw_id
         try:
             scan_wrapper_path = local_settings.scandump_parser_path
         except AttributeError:
@@ -158,7 +159,7 @@ class DebugImage_v2():
             val = ram_dump.read_byte(i, False)
             header_bin.write(struct.pack("<B", val))
         header_bin.close()
-        subprocess.call('python {0} -d {1} -o {2} -f {3}'.format(scan_wrapper_path, input, output, arch))
+        subprocess.call('python {0} -d {1} -o {2} -f {3} -c {4}'.format(scan_wrapper_path, input, output, arch, chipset))
         sv2 = Scandump_v2(core_num,ram_dump,version)
         reg_info = sv2.prepare_dict()
         if reg_info is not None:
