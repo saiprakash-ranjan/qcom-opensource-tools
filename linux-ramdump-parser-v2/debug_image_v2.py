@@ -51,7 +51,7 @@ class client(object):
     MSM_DUMP_DATA_MISC = 0xE8
     MSM_DUMP_DATA_VSENSE = 0xE9
     MSM_DUMP_DATA_TMC_ETF = 0xF0
-    MSM_DUMP_DATA_TMC_REG = 0x100
+    MSM_DUMP_DATA_TMC_ETR_REG = 0x100
     MSM_DUMP_DATA_TMC_ETF_REG = 0x101
     MSM_DUMP_DATA_LOG_BUF = 0x110
     MSM_DUMP_DATA_LOG_BUF_FIRST_IDX = 0x111
@@ -81,6 +81,7 @@ client_types = [
     ('MSM_DUMP_DATA_DCC_REG', 'parse_dcc_reg'),
     ('MSM_DUMP_DATA_DCC_SRAM', 'parse_dcc_sram'),
     ('MSM_DUMP_DATA_TMC_ETF', 'parse_qdss_common'),
+    ('MSM_DUMP_DATA_TMC_ETR_REG', 'parse_qdss_common'),
     ('MSM_DUMP_DATA_TMC_REG', 'parse_qdss_common'),
     ('MSM_DUMP_DATA_L2_TLB', 'parse_tlb_common'),
     ('MSM_DUMP_DATA_LLC_CACHE', 'parse_system_cache_common'),
@@ -88,6 +89,7 @@ client_types = [
 ]
 
 qdss_tag_to_field_name = {
+    'MSM_DUMP_DATA_TMC_ETR_REG': 'tmc_etr_start',
     'MSM_DUMP_DATA_TMC_REG': 'tmc_etr_start',
     'MSM_DUMP_DATA_TMC_ETF': 'etf_start',
     'MSM_DUMP_DATA_DBGUI_REG': 'dbgui_start',
@@ -108,6 +110,7 @@ minidump_dump_table_type = [
     ('MSM_DUMP_DATA_DCC_REG', 'KDCC_REG'),
     ('MSM_DUMP_DATA_DCC_SRAM', 'KDCC_SRAM'),
     ('MSM_DUMP_DATA_TMC_ETF', 'KTMC_ETF'),
+    ('MSM_DUMP_DATA_TMC_ETR_REG', 'KTMC_REG'),
     ('MSM_DUMP_DATA_TMC_REG', 'KTMC_REG'),
     ('MSM_DUMP_DATA_MISC', 'KMISC')
 
@@ -669,7 +672,7 @@ class DebugImage_v2():
             client.MSM_DUMP_DATA_FCMDUMP] = 'MSM_DUMP_DATA_FCMDUMP'
         # 0x100 - tmc-etr registers and 0x101 - for tmc-etf registers
         self.dump_data_id_lookup_table[
-            client.MSM_DUMP_DATA_TMC_REG + 1] = 'MSM_DUMP_DATA_TMC_REG'
+            client.MSM_DUMP_DATA_TMC_ETR_REG + 1] = 'MSM_DUMP_DATA_TMC_ETR_REG'
         self.dump_data_id_lookup_table[
             client.MSM_DUMP_DATA_LOG_BUF] = 'MSM_DUMP_DATA_LOG_BUF'
         self.dump_data_id_lookup_table[
