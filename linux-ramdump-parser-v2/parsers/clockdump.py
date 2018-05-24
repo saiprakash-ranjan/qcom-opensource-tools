@@ -175,6 +175,8 @@ class ClockDumps(RamParser):
         clk_ops = self.ramdump.read_structure_field(
                                 clk_core,'struct clk_core','ops')
         clk_ops = self.ramdump.unwind_lookup(clk_ops)
+        if clk_ops is None:
+            clk_ops = ["dynamic module"]
         cur_level = 0
         if vdd_class != 0 and vdd_class is not None:
             cur_level_address = (vdd_class + offset_vdd_cur_level)
