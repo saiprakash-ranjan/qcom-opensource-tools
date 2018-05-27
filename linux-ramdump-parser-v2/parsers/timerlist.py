@@ -1,4 +1,4 @@
-# Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -50,8 +50,10 @@ class TimerList(RamParser) :
         function_addr = node + self.ramdump.field_offset('struct timer_list', 'function')
         expires_addr = node + self.ramdump.field_offset('struct timer_list', 'expires')
         data_addr = node + self.ramdump.field_offset('struct timer_list', 'data')
-
-        function =  self.ramdump.unwind_lookup(self.ramdump.read_word(function_addr))[0]
+        try:
+            function =  self.ramdump.unwind_lookup(self.ramdump.read_word(function_addr))[0]
+        except TypeError:
+            function = "<dynamic module>"
         expires = self.ramdump.read_word(expires_addr)
         try:
             data = hex(self.ramdump.read_word(data_addr)).rstrip('L')
