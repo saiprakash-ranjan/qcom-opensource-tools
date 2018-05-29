@@ -418,3 +418,5 @@ if __name__ == '__main__':
     if options.t32launcher or options.everything or options.minidump:
         dump.create_t32_launcher()
 
+    dump.gdbmi.close()
+
