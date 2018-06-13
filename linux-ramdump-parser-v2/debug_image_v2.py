@@ -400,6 +400,16 @@ class DebugImage_v2():
 
         self.formats_out.close
 
+    def wait_for_completion_timeout(self, task, timeout):
+        delay = 2.0
+        #while the process is still executing and we haven't timed-out yet
+        while task.poll() is None and timeout > 0:
+            time.sleep(delay)
+            timeout -= delay
+        if timeout <= 0:
+            print_out_str("QTF command timed out")
+            task.kill()
+
     def parse_qtf(self, ram_dump):
         out_dir = ram_dump.outdir
         if platform.system() != 'Windows':
@@ -448,7 +458,8 @@ class DebugImage_v2():
         workspace = os.path.join(qtf_dir, 'qtf.workspace')
         qtf_out = os.path.join(out_dir, 'qtf.txt')
         chipset = ram_dump.hw_id
-        if "sdm" not in ram_dump.hw_id.lower():
+        if "sdm" not in ram_dump.hw_id.lower() and \
+          "qcs" not in ram_dump.hw_id.lower():
             chipset = "msm" + ram_dump.hw_id
         hlos = 'LA'
 
@@ -460,8 +471,8 @@ class DebugImage_v2():
         for tries in range(max_tries):
             port = random.randint(12000, 13000)
             server_proc = subprocess.Popen(
-                [qtf_path, '-s', '{0}'.format(port)], stderr=subprocess.PIPE)
-            time.sleep(1)
+                [qtf_path, '-s', '{:d}'.format(port)], shell=True,stderr=subprocess.PIPE)
+            time.sleep(15)
             server_proc.poll()
             if server_proc.returncode == 1:
                 server_proc.terminate()
@@ -477,17 +488,23 @@ class DebugImage_v2():
             print_out_str('!!! Please kill all currently running qtf_server '
                           'processes and try again')
             return
-
-        subprocess.call('{0} -c {1} new workspace {2} {3} {4}'.format(qtf_path, port, qtf_dir, chipset, hlos))
-
+        #subprocess.call('{0} -c {1} new workspace {2} {3} {4}'.format(qtf_path, port, qtf_dir, chipset, hlos))
+        server_proc1 = subprocess.Popen(
+                   [qtf_path, '-c', '{:d}'.format(port),'new workspace {0} {1} {2}'.format(qtf_dir, chipset, hlos)], shell=True,stderr=subprocess.PIPE,stdout=subprocess.PIPE)
+        server_proc1.communicate()
         self.collect_ftrace_format(ram_dump)
 
-        subprocess.call('{0} -c {1} open workspace {2}'.format(qtf_path, port, workspace))
-        subprocess.call('{0} -c {1} open bin {2}'.format(qtf_path, port, trace_file))
-        subprocess.call('{0} -c {1} stream trace table {2}'.format(qtf_path, port, qtf_out))
-        subprocess.call('{0} -c {1} close'.format(qtf_path, port))
-        subprocess.call('{0} -c {1} exit'.format(qtf_path, port))
-        server_proc.communicate('quit')
+        p = subprocess.Popen('{0} -c {1} open workspace {2}'.format(qtf_path, port, workspace))
+        self.wait_for_completion_timeout(p,60)
+        p = subprocess.Popen('{0} -c {1} open bin {2}'.format(qtf_path, port, trace_file))
+        self.wait_for_completion_timeout(p,90)
+        p = subprocess.Popen('{0} -c {1} stream trace table {2}'.format(qtf_path, port, qtf_out))
+        self.wait_for_completion_timeout(p,300)
+        p = subprocess.Popen('{0} -c {1} close'.format(qtf_path, port))
+        self.wait_for_completion_timeout(p,60)
+        p = subprocess.Popen('{0} -c {1} exit'.format(qtf_path, port))
+        self.wait_for_completion_timeout(p,60)
+        server_proc.terminate()
 
     def parse_dcc(self, ram_dump):
         out_dir = ram_dump.outdir
