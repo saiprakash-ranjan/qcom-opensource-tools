@@ -1,4 +1,4 @@
-# Copyright (c) 2012, 2014-2015 The Linux Foundation. All rights reserved.
+# Copyright (c) 2012, 2014-2018 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -412,8 +412,8 @@ class QDSSDump():
                 if (sts & 0x1) == 1:
                     it1 = range(rwpval, dbaddr+rsz)
                     it2 = range(dbaddr, rwpval)
-                    tmc_etr.write(ram_dump.read_physical(it1[0], len(it)))
-                    tmc_etr.write(ram_dump.read_physical(it2[0], len(it)))
+                    tmc_etr.write(ram_dump.read_physical(it1[0], len(it1)))
+                    tmc_etr.write(ram_dump.read_physical(it2[0], len(it2)))
                 else:
                     it = range(dbaddr, dbaddr+rsz)
                     tmc_etr.write(ram_dump.read_physical(it[0], len(it)))

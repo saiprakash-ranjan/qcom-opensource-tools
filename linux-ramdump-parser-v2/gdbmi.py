@@ -294,7 +294,7 @@ class GdbMI(object):
 
     def get_value_of_string(self, symbol):
         """Returns the value of a symbol (as a string)"""
-	self._run("set print elements 256")
+        self._run("set print elements 256")
         cmd = 'print /s {0}'.format(symbol)
         result = self._run(cmd)
         if len(result.lines) == 0:

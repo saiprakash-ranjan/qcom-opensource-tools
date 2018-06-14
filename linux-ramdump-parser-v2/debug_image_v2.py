@@ -348,7 +348,9 @@ class DebugImage_v2():
         class_offset = ram_dump.field_offset(self.event_call, 'class')
         flags_offset = ram_dump.field_offset(self.event_call, 'flags')
         flags = ram_dump.read_word(ftrace_list + flags_offset)
-        if ram_dump.kernel_version >= (4, 9):
+        if ram_dump.kernel_version >= (4, 14):
+            TRACE_EVENT_FL_TRACEPOINT = 0x10
+        elif ram_dump.kernel_version >= (4, 9):
             TRACE_EVENT_FL_TRACEPOINT = 0x20
         else:
             TRACE_EVENT_FL_TRACEPOINT = 0x40
