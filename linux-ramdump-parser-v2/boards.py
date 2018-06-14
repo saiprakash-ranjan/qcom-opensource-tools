@@ -515,6 +515,32 @@ class BoardQCS605(Board):
         self.wdog_addr = 0x146BF658
         self.imem_file_name = 'OCIMEM.BIN'
 
+class BoardQCS405(Board):
+    def __init__(self, socid):
+        super(BoardQCS405, self).__init__()
+        self.socid = socid
+        self.board_num = "qcs405"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6300000
+        self.phys_offset = 0x40000000
+        self.imem_start = 0x8600000
+        self.wdog_addr = 0x8600658
+        self.imem_file_name = 'OCIMEM.BIN'
+
+class BoardQCS403(Board):
+    def __init__(self, socid):
+        super(BoardQCS403, self).__init__()
+        self.socid = socid
+        self.board_num = "qcs403"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.smem_addr = 0x6300000
+        self.phys_offset = 0x40000000
+        self.imem_start = 0x8600000
+        self.wdog_addr = 0x8600658
+        self.imem_file_name = 'OCIMEM.BIN'
+
 class Board8998(Board):
     def __init__(self, socid):
         super(Board8998, self).__init__()
@@ -822,6 +848,8 @@ boards.append(BoardSDM710(socid=337))
 boards.append(BoardSDM710(socid=360))
 
 boards.append(BoardQCS605(socid=347))
+boards.append(BoardQCS405(socid=352))
+boards.append(BoardQCS403(socid=373))
 
 boards.append(BoardPoorwills(socid=334))
 boards.append(BoardPoorwills(socid=335))
