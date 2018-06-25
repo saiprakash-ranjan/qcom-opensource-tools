@@ -1,4 +1,4 @@
-# Copyright (c) 2012,2014-2015,2017 The Linux Foundation. All rights reserved.
+# Copyright (c) 2012,2014-2015,2017-2018 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -25,6 +25,8 @@ class PageTracking(RamParser):
         if (self.ramdump.kernel_version >= (3, 19, 0)):
             if self.ramdump.is_config_defined('CONFIG_SPARSEMEM'):
                 mem_section = self.ramdump.read_word('mem_section')
+                if self.ramdump.kernel_version >= (4, 14):
+                    mem_section = self.ramdump.read_word(mem_section)
             else:
                 mem_section = self.ramdump.address_of('contig_page_data')
 
