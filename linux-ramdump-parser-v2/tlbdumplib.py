@@ -28,6 +28,10 @@
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import struct
+import os
+import sys
+
+from kryo_cache_tlb_parser import main as kryo_tlb_parser_main
 
 """dictionary mapping from (hw_id, client_id, version) to class CacheDump"""
 lookuptable = {}
@@ -169,6 +173,107 @@ class TlbDumpType_v2(TlbDumpType):
                 self.tableformat.printline(output, outfile)
                 start = start + self.LineSize * 0x4
                 offset = offset + 0x1000
+
+class TlbDumpType_v3(object):
+    def __init__(self):
+        self.infile_name = "scratch.bin"
+
+    def parse(self, start, end, ramdump, outfile):
+        self.ramdump = ramdump
+        self.outfile = outfile
+        """kryo tlb parser expects an input file with dump data for the tlb so
+           temporarily create file with dump data"""
+        infile_fd = ramdump.open_file(self.infile_name)
+        core_dump_size = end - start
+        buf = ramdump.read_physical(start, core_dump_size)
+        infile_fd.write(buf)
+        infile_fd.close()
+        self.parse_dump()
+        ramdump.remove_file(self.infile_name)
+
+    def parse_dump(self):
+        #child class should implement this method
+        raise NotImplementedError
+
+    def kryo_tlb_parse(self, cmd, offset, outfile_name):
+        #expected cmdline arguments for kryo tlb parser.
+        opts_flgs = ["-i", "-o", "-t", "-c", "-s"]
+        infile_path = os.path.join(self.ramdump.outdir, self.infile_name)
+        outfile_path = os.path.join(self.ramdump.outdir, outfile_name)
+        cpu_name = self.cpu_name
+        offset_str = str(offset)
+        opts_params = [infile_path, outfile_path, cmd, cpu_name, offset_str]
+        argv = [None] * (2 * len(opts_flgs))
+        for i in xrange(len(opts_flgs)):
+            argv[2 * i] = opts_flgs[i]
+            argv[(2 * i) + 1] = opts_params[i]
+        """Since the kryo tlb parser expects the data to be parsed and output
+           to be redirected to the outfile, and we're not calling it from the
+           command line to redirect the output, we can do it like this"""
+        outfile_fd = self.ramdump.open_file(outfile_name)
+        sys.stdout.flush()
+        sys.stdout = outfile_fd
+        kryo_tlb_parser_main(argv)
+        sys.stdout.flush()
+        sys.stdout = sys.__stdout__
+        outfile_fd.close()
+
+    def post_process(self, datafile_name, tagfile_name=None):
+        if(tagfile_name is not None and datafile_name is not None):
+            tagfd = self.ramdump.open_file(tagfile_name, 'r')
+            datafd = self.ramdump.open_file(datafile_name, 'r')
+
+            #discard first line since it's just a header
+            tagfd.readline()
+            datafd.readline()
+
+            tag_line = tagfd.readline()
+            data_line = datafd.readline()
+
+            while(tag_line != "" and data_line != ""):
+                tag_line = tag_line.strip(" ")
+                data_line = data_line.strip(" ")
+                output_arr = []
+                tag_line_arr = tag_line.split()
+                data_line_arr = data_line.split()
+                #always skip set and ways in the second file, since you already
+                #have it
+                data_line_arr = data_line_arr[2:]
+                for entry in tag_line_arr:
+                    output_arr.append(int(entry.strip("\n"), 16))
+                for entry in data_line_arr:
+                    output_arr.append(int(entry.strip("\n"), 16))
+                self.tableformat.printline(output_arr, self.outfile)
+                tag_line = tagfd.readline()
+                data_line = datafd.readline()
+
+            tagfd.close()
+            datafd.close()
+
+            self.ramdump.remove_file(tagfile_name)
+            self.ramdump.remove_file(datafile_name)
+
+        elif(tagfile_name is None and datafile_name is not None):
+            datafd = self.ramdump.open_file(datafile_name, 'r')
+
+            #discard first line since it's just a header
+            datafd.readline()
+
+            data_line = datafd.readline()
+
+            while(data_line != ""):
+                data_line = data_line.strip(" ")
+                output_arr = []
+                data_line_arr = data_line.split()
+                for entry in data_line_arr:
+                    output_arr.append(int(entry.strip("\n"), 16))
+                self.tableformat.printline(output_arr, self.outfile)
+                data_line = datafd.readline()
+
+            datafd.close()
+
+            self.ramdump.remove_file(datafile_name)
+
 
 class L1_TLB_KRYO2XX_GOLD(TlbDumpType_v2):
     def __init__(self):
@@ -460,6 +565,168 @@ class L2_TLB_KRYO3XX_SILVER(TlbDumpType_v1):
         output.append(va)
         output.append(pa)
         output.append(dbm)
+
+class L1_ITLB_KRYO4XX_GOLD(TlbDumpType_v3):
+    def __init__(self):
+        super(L1_ITLB_KRYO4XX_GOLD, self).__init__()
+        #name must match expected name from kryo tlb parser
+        self.cpu_name = "KRYO4GOLD"
+        self.tableformat = TableOutputFormat()
+        self.tableformat.addColumn('Set', '{0:03x}', 3)
+        self.tableformat.addColumn('Way', '{0:01x}', 1)
+        self.tableformat.addColumn('Valid', '{0:01x}', 1)
+        self.tableformat.addColumn('Attr1', '{0:01x}', 1)
+        self.tableformat.addColumn('TxlnRegime', '{0:01x}', 1)
+        self.tableformat.addColumn('VMID', '{0:04x}', 4)
+        self.tableformat.addColumn('ASID', '{0:04x}', 4)
+        self.tableformat.addColumn('Attr2', '{0:02x}', 2)
+        self.tableformat.addColumn('InnerShared', '{0:01x}', 1)
+        self.tableformat.addColumn('OuterShared', '{0:01x}', 1)
+        self.tableformat.addColumn('Attr3', '{0:01x}', 1)
+        self.tableformat.addColumn('PageSize', '{0:01x}', 1)
+        self.tableformat.addColumn('MemAttr', '{0:01x}', 1)
+        self.tableformat.addColumn('Attr4', '{0:01x}', 1)
+        self.tableformat.addColumn('PBHA', '{0:01x}', 1)
+        self.tableformat.addColumn('VA', '{0:016x}', 16)
+        self.tableformat.addColumn('PA', '{0:08x}', 8)
+        self.tableformat.addColumn('NS', '{0:01x}', 1)
+
+    def parse_dump(self):
+        datafile_name = "data_scratch"
+        self.kryo_tlb_parse("L1ITLB", 0, datafile_name)
+        self.post_process(datafile_name)
+
+
+class L1_DTLB_KRYO4XX_GOLD(TlbDumpType_v3):
+    def __init__(self):
+        super(L1_DTLB_KRYO4XX_GOLD, self).__init__()
+        #name must match expected name from kryo tlb parser
+        self.cpu_name = "KRYO4GOLD"
+        self.tableformat = TableOutputFormat()
+        self.tableformat.addColumn('Set', '{0:03x}', 3)
+        self.tableformat.addColumn('Way', '{0:01x}', 1)
+        self.tableformat.addColumn('Valid', '{0:01x}', 1)
+        self.tableformat.addColumn('VMID', '{0:04x}', 4)
+        self.tableformat.addColumn('ASID', '{0:04x}', 4)
+        self.tableformat.addColumn('TxlnRegime', '{0:01x}', 1)
+        self.tableformat.addColumn('NS', '{0:01x}', 1)
+        self.tableformat.addColumn('PageSize', '{0:01x}', 1)
+        self.tableformat.addColumn('MemAttr', '{0:01x}', 1)
+        self.tableformat.addColumn('InnerShared', '{0:01x}', 1)
+        self.tableformat.addColumn('OuterShared', '{0:01x}', 1)
+        self.tableformat.addColumn('VA', '{0:016x}', 16)
+        self.tableformat.addColumn('PA', '{0:08x}', 8)
+        self.tableformat.addColumn('PBHA', '{0:01x}', 1)
+
+    def parse_dump(self):
+        datafile_name = "data_scratch"
+        self.kryo_tlb_parse("L1DTLB", 0, datafile_name)
+        self.post_process(datafile_name)
+
+class L2_TLB_KRYO4XX_SILVER(TlbDumpType_v3):
+    def __init__(self):
+        super(L2_TLB_KRYO4XX_SILVER, self).__init__()
+        self.cpu_name = "KRYO4SILVER"
+        self.tableformat = TableOutputFormat()
+        self.tableformat.addColumn('Set', '{0:03x}', 3)
+        self.tableformat.addColumn('Way', '{0:01x}', 1)
+        self.tableformat.addColumn('Valid', '{0:01x}', 1)
+        self.tableformat.addColumn('NS', '{0:01x}', 1)
+        self.tableformat.addColumn('ASID', '{0:04x}', 4)
+        self.tableformat.addColumn('VMID', '{0:04x}', 4)
+        self.tableformat.addColumn('size', '{0:01x}', 1)
+        self.tableformat.addColumn('nG', '{0:01x}', 1)
+        self.tableformat.addColumn('APHyp', '{0:01x}', 1)
+        self.tableformat.addColumn('S2AP', '{0:01x}', 1)
+        self.tableformat.addColumn('Dom', '{0:01x}', 1)
+        self.tableformat.addColumn('S1Size', '{0:01x}', 1)
+        self.tableformat.addColumn('AddrSignBit', '{0:01x}', 1)
+        self.tableformat.addColumn('VA', '{0:08x}', 8)
+        self.tableformat.addColumn('DBM', '{0:01x}', 1)
+        self.tableformat.addColumn('Parity', '{0:01x}', 1)
+        self.tableformat.addColumn('XS1Usr', '{0:01x}', 1)
+        self.tableformat.addColumn('XS1NonUsr', '{0:01x}', 1)
+        self.tableformat.addColumn('XS2Usr', '{0:01x}', 1)
+        self.tableformat.addColumn('XS2NonUsr', '{0:01x}', 1)
+        self.tableformat.addColumn('MemTypeAndShareability', '{0:02x}', 2)
+        self.tableformat.addColumn('S2Level', '{0:01x}', 1)
+        self.tableformat.addColumn('NS', '{0:01x}', 1)
+        self.tableformat.addColumn('PA', '{0:08x}', 8)
+        self.tableformat.addColumn('Parity', '{0:01x}', 1)
+        #refer to section A5.2.2 in TRM
+        self.NumWays = 4
+        self.NumSets = 0x100
+        #refer to new src for dumping tag data to see number of tag entries
+        self.NumTagRegs = 3
+        #refer to new src for dumping tag data to see size. Use bytes
+        self.RegSize = 4
+
+    def parse_dump(self):
+        tagfile_name = "tag_scratch"
+        self.kryo_tlb_parse("TLBT", 0, tagfile_name)
+
+        datafile_name = "data_scratch"
+        """the input file is the dump for this TLB, and this is divided into
+           two parts: the tag contents for all of the TLB, followed by the data
+           contents for all of the TLB. As such, you must calculate the size of
+           the tag content for the TLB to get the offset into the dump where the
+           data contents start."""
+        data_offset = self.NumWays * self.NumSets * self.RegSize *\
+                      self.NumTagRegs
+        self.kryo_tlb_parse("TLBD", data_offset, datafile_name)
+        self.post_process(datafile_name, tagfile_name)
+
+
+class L2_TLB_KRYO4XX_GOLD(TlbDumpType_v3):
+    def __init__(self):
+        super(L2_TLB_KRYO4XX_GOLD, self).__init__()
+        #name must match expected name from kryo tlb parser
+        self.cpu_name = "KRYO4GOLD"
+        self.tableformat = TableOutputFormat()
+        self.tableformat.addColumn('Set', '{0:03x}', 3)
+        self.tableformat.addColumn('Way', '{0:01x}', 1)
+        self.tableformat.addColumn('Valid(0x)', '{0:01x}', 1)
+        self.tableformat.addColumn('Coalesced', '{0:01x}', 1)
+        self.tableformat.addColumn('PageSize(0x)', '{0:01x}', 1)
+        self.tableformat.addColumn('PA(0x)', '{0:08x}', 8)
+        self.tableformat.addColumn('MemAttr', '{0:01x}', 1)
+        self.tableformat.addColumn('InnerShared', '{0:01x}', 1)
+        self.tableformat.addColumn('OuterShared', '{0:01x}', 1)
+        self.tableformat.addColumn('nonGlobal', '{0:01x}', 1)
+        self.tableformat.addColumn('NS', '{0:01x}', 1)
+        self.tableformat.addColumn('VA(0x)', '{0:08x}', 8)
+        self.tableformat.addColumn('Prefetched(0x)', '{0:01x}', 1)
+        self.tableformat.addColumn('walkCache(0x)', '{0:01x}', 1)
+        self.tableformat.addColumn('PBHA(0x)', '{0:01x}', 1)
+        self.tableformat.addColumn('ASID(0x)', '{0:04x}', 4)
+        self.tableformat.addColumn('VMID(0x)', '{0:04x}', 4)
+        self.tableformat.addColumn('TxlnRegime(0x)', '{0:01x}', 1)
+
+    def parse_dump(self):
+        datafile_name = "data_scratch"
+        self.kryo_tlb_parse("TLBD", 0, datafile_name)
+        self.post_process(datafile_name)
+
+
+#sm8150
+lookuptable[("sm8150", 0x24, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
+lookuptable[("sm8150", 0x25, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
+lookuptable[("sm8150", 0x26, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
+lookuptable[("sm8150", 0x27, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
+
+lookuptable[("sm8150", 0x44, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
+lookuptable[("sm8150", 0x45, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
+lookuptable[("sm8150", 0x46, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
+lookuptable[("sm8150", 0x47, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
+
+lookuptable[("sm8150", 0x120, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("sm8150", 0x121, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("sm8150", 0x122, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("sm8150", 0x123, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("sm8150", 0x124, 0x14)] = L2_TLB_KRYO4XX_GOLD();
+lookuptable[("sm8150", 0x125, 0x14)] = L2_TLB_KRYO4XX_GOLD();
+lookuptable[("sm8150", 0x126, 0x14)] = L2_TLB_KRYO4XX_GOLD();
+lookuptable[("sm8150", 0x127, 0x14)] = L2_TLB_KRYO4XX_GOLD();
 
 # "sdm845"
 lookuptable[("sdm845", 0x120, 0x14)] = L2_TLB_KRYO3XX_SILVER()
