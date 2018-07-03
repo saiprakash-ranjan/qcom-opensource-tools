@@ -45,6 +45,43 @@ def bytes_to_KB(bytes):
     return kb_val
 
 
+def ion_buffer_info(self, ramdump, ion_info):
+    ion_info = ramdump.open_file('ionbuffer.txt')
+    db_list = ramdump.address_of('db_list')
+    if db_list is None:
+        ion_info.write("NOTE: 'db_list' list not found to extract the ion "
+                       "buffer information")
+        return
+
+    ion_info.write("*****Prasing dma buf info for ion leak debugging*****\n\n")
+    head_offset = ramdump.field_offset('struct dma_buf_list', 'head')
+    head = ramdump.read_word(db_list + head_offset)
+    list_node_offset = ramdump.field_offset('struct dma_buf', 'list_node')
+    size_offset = ramdump.field_offset('struct dma_buf', 'size')
+    file_offset = ramdump.field_offset('struct dma_buf', 'file')
+    name_offset = ramdump.field_offset('struct dma_buf', 'name')
+    exp_name_offset = ramdump.field_offset('struct dma_buf', 'exp_name')
+    ion_info.write("{0:40} {1:15} {2:10} {3:20}\n".format(
+                'File_addr', 'Name', 'Size', 'Size in KB'))
+    dma_buf_info = []
+    while (head != db_list):
+        dma_buf_addr = head - list_node_offset
+        size = ramdump.read_word(dma_buf_addr + size_offset)
+        file = ramdump.read_word(dma_buf_addr + file_offset)
+        exp_name = ramdump.read_word(dma_buf_addr + exp_name_offset)
+        name = ramdump.read_word(dma_buf_addr + name_offset)
+        name = ramdump.read_cstring(name, 48)
+        exp_name = ramdump.read_cstring(exp_name, 48)
+        dma_buf_info.append([file, name, hex(size), bytes_to_KB(size)])
+        head = ramdump.read_word(head)
+
+    dma_buf_info = sorted(dma_buf_info, key=lambda l: l[3], reverse=True)
+    for item in dma_buf_info:
+        str = "v.v (struct file *)0x{0:x}\t {1:15} {2:10} ({3} KB)\n".\
+                    format(item[0], item[1], item[2], item[3])
+        ion_info.write(str)
+
+
 def do_dump_ionbuff_info(self, ramdump, ion_info):
     addressspace = 8
     heap_addr_array = []
@@ -374,4 +411,7 @@ class DumpIonBuffer(RamParser):
             self.logger.addHandler(logging.FileHandler(path, mode='w'))
             self.logger.setLevel(logging.INFO)
             self.logger.info("Starting --print-ionbuffer")
-            do_dump_ionbuff_info(self, self.ramdump, ion_info)
+            if (self.ramdump.kernel_version >= (4, 14)):
+                ion_buffer_info(self, self.ramdump, ion_info)
+            else:
+                do_dump_ionbuff_info(self, self.ramdump, ion_info)

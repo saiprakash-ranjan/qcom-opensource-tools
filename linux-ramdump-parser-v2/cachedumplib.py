@@ -1162,6 +1162,26 @@ lookuptable[("8917", 0x65, 0x14)] = L1_ICache_A53()
 lookuptable[("8917", 0x66, 0x14)] = L1_ICache_A53()
 lookuptable[("8917", 0x67, 0x14)] = L1_ICache_A53()
 
+# qcs405
+lookuptable[("qcs405", 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs405", 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs405", 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs405", 0x87, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs405", 0x64, 0x14)] = L1_ICache_A53()
+lookuptable[("qcs405", 0x65, 0x14)] = L1_ICache_A53()
+lookuptable[("qcs405", 0x66, 0x14)] = L1_ICache_A53()
+lookuptable[("qcs405", 0x67, 0x14)] = L1_ICache_A53()
+
+# qcs403
+lookuptable[("qcs403", 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs403", 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs403", 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs403", 0x87, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs403", 0x64, 0x14)] = L1_ICache_A53()
+lookuptable[("qcs403", 0x65, 0x14)] = L1_ICache_A53()
+lookuptable[("qcs403", 0x66, 0x14)] = L1_ICache_A53()
+lookuptable[("qcs403", 0x67, 0x14)] = L1_ICache_A53()
+
 # 8920
 lookuptable[("8920", 0x84, 0x14)] = L1_DCache_A53()
 lookuptable[("8920", 0x85, 0x14)] = L1_DCache_A53()
