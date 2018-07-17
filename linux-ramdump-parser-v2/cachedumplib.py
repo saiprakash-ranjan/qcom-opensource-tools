@@ -1,4 +1,4 @@
-# Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -9,6 +9,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 import struct
+import os
+import sys
+
+from kryo_cache_tlb_parser import main as kryo_cache_parser_main
 
 """dictionary mapping from (hw_id, client_id, version) to class CacheDump"""
 lookuptable = {}
@@ -163,6 +167,87 @@ class CacheDumpType_v1(CacheDump):
                 output.extend(line[self.TagSize:])
                 self.tableformat.printline(output, outfile)
                 start = start + (self.TagSize + self.LineSize) * 0x4
+
+class CacheDumpType_v2(object):
+    def __init__(self):
+        self.infile_name = "scratch.bin"
+
+    def parse(self, start, end, ramdump, outfile):
+        self.ramdump = ramdump
+        self.outfile = outfile
+        """kryo cache parser expects an input file with dump data for the
+           caches so temporarily create file with dump data"""
+        infile_fd = ramdump.open_file(self.infile_name)
+        core_dump_size = end - start
+        buf = ramdump.read_physical(start, core_dump_size)
+        infile_fd.write(buf)
+        infile_fd.close()
+        self.parse_dump()
+        ramdump.remove_file(self.infile_name)
+
+    def parse_dump(self):
+        #child class should implement this method
+        raise NotImplementedError
+
+    def kryo_cache_parse(self, cmd, offset, outfile_name):
+        #expected cmdline arguments for kryo cache parser.
+        opts_flgs = ["-i", "-o", "-t", "-c", "-s"]
+        infile_path = os.path.join(self.ramdump.outdir, self.infile_name)
+        outfile_path = os.path.join(self.ramdump.outdir, outfile_name)
+        cpu_name = self.cpu_name
+        offset_str = str(offset)
+        opts_params = [infile_path, outfile_path, cmd, cpu_name, offset_str]
+        argv = [None] * (2 * len(opts_flgs))
+        for i in xrange(len(opts_flgs)):
+            argv[2 * i] = opts_flgs[i]
+            argv[(2 * i) + 1] = opts_params[i]
+        """Since the kryo cache parser expects the data to be parsed and
+           output to be redirected to the outfile, and we're not calling it
+           from the command line to redirect the output, we can do it like
+           this"""
+        outfile_fd = self.ramdump.open_file(outfile_name)
+        sys.stdout.flush()
+        sys.stdout = outfile_fd
+        kryo_cache_parser_main(argv)
+        sys.stdout.flush()
+        sys.stdout = sys.__stdout__
+        outfile_fd.close()
+
+    def post_process(self, datafile_name, tagfile_name):
+        tagfd = self.ramdump.open_file(tagfile_name, 'r')
+        datafd = self.ramdump.open_file(datafile_name, 'r')
+
+        #discard first line since it's just a header
+        tagfd.readline()
+        datafd.readline()
+
+        tag_line = tagfd.readline()
+        data_line = datafd.readline()
+
+        while(tag_line != "" and data_line != ""):
+            tag_line = tag_line.strip(" ")
+            data_line = data_line.strip(" ")
+            output_arr = []
+            tag_line_arr = tag_line.split()
+            data_line_arr = data_line.split()
+            #always skip set and ways in the second file, since you already
+            #have it
+            data_line_arr = data_line_arr[2:]
+            for entry in tag_line_arr:
+                output_arr.append(int(entry.strip("\n"), 16))
+            for entry in data_line_arr:
+                output_arr.append(int(entry.strip("\n"), 16))
+            self.tableformat.printline(output_arr, self.outfile)
+            tag_line = tagfd.readline()
+            data_line = datafd.readline()
+
+        tagfd.close()
+        datafd.close()
+
+        self.ramdump.remove_file(tagfile_name)
+        self.ramdump.remove_file(datafile_name)
+
+
 
 
 class L1_DCache_A53(CacheDumpType_v1):
@@ -608,6 +693,258 @@ class LLC_SYSTEM_CACHE_KRYO3XX(CacheDumpType_v1):
 L1_DCache_KRYO2XX_SILVER = L1_DCache_A53
 L1_ICache_KYRO2XX_SILVER = L1_ICache_A53
 
+class L1_ICache_KRYO4XX_SILVER(CacheDumpType_v2):
+    def __init__(self):
+        super(L1_ICache_KRYO4XX_SILVER, self).__init__()
+        self.cpu_name = "KRYO4SILVER"
+        self.tableformat = TableOutputFormat()
+        self.tableformat.addColumn('Set', '{0:03x}', 3)
+        self.tableformat.addColumn('Way', '{0:01x}', 1)
+        self.tableformat.addColumn('TagAddr', '{0:08x}', 8)
+        self.tableformat.addColumn('NS', '{0:01x}', 1)
+        self.tableformat.addColumn('ValidAndSetMode', '{0:01x}', 1)
+        self.tableformat.addColumn('0', '{0:08x}', 8)
+        self.tableformat.addColumn('4', '{0:08x}', 8)
+        self.tableformat.addColumn('8', '{0:08x}', 8)
+        self.tableformat.addColumn('C', '{0:08x}', 8)
+        self.tableformat.addColumn('10', '{0:08x}', 8)
+        self.tableformat.addColumn('14', '{0:08x}', 8)
+        self.tableformat.addColumn('18', '{0:08x}', 8)
+        self.tableformat.addColumn('1C', '{0:08x}', 8)
+        self.tableformat.addColumn('20', '{0:08x}', 8)
+        self.tableformat.addColumn('24', '{0:08x}', 8)
+        self.tableformat.addColumn('28', '{0:08x}', 8)
+        self.tableformat.addColumn('2C', '{0:08x}', 8)
+        self.tableformat.addColumn('30', '{0:08x}', 8)
+        self.tableformat.addColumn('34', '{0:08x}', 8)
+        self.tableformat.addColumn('38', '{0:08x}', 8)
+        self.tableformat.addColumn('3C', '{0:08x}', 8)
+        self.NumSets = 0x80
+        self.NumWays = 4
+        self.NumTagRegs = 1
+        self.RegSize = 4
+
+    def parse_dump(self):
+        tagfile_name = 'tag_scratch'
+        self.kryo_cache_parse("ICT", 0, tagfile_name)
+
+        datafile_name = 'data_scratch'
+        """the input file is the dump for this ICACHE, and this is divided into
+           two parts: the tag contents for all of the ICACHE, followed by the
+           data contents for all of the ICACHE. As such, you must calculate the
+           size of the tag content for the ICACHE to get the offset into the
+           dump where the data contents start."""
+        data_offset = self.NumWays * self.NumSets * self.RegSize *\
+                      self.NumTagRegs
+        self.kryo_cache_parse("ICD", data_offset, datafile_name)
+        self.post_process(datafile_name, tagfile_name)
+
+
+class L1_DCache_KRYO4XX_SILVER(CacheDumpType_v2):
+    def __init__(self):
+        super(L1_DCache_KRYO4XX_SILVER, self).__init__()
+        self.tableformat = TableOutputFormat()
+        self.tableformat.addColumn('Set', '{0:03x}', 3)
+        self.tableformat.addColumn('Way', '{0:01x}', 1)
+        self.tableformat.addColumn('OuterAllocationHint', '{0:01x}', 1)
+        self.tableformat.addColumn('Age', '{0:01x}', 1)
+        self.tableformat.addColumn('Shareability', '{0:01x}', 1)
+        self.tableformat.addColumn('Dirty', '{0:01x}', 1)
+        self.tableformat.addColumn('TagAddr', '{0:08x}', 8)
+        self.tableformat.addColumn('NS', '{0:01x}', 1)
+        self.tableformat.addColumn('MESI', '{0:01x}', 1)
+        self.tableformat.addColumn('0', '{0:08x}', 8)
+        self.tableformat.addColumn('4', '{0:08x}', 8)
+        self.tableformat.addColumn('8', '{0:08x}', 8)
+        self.tableformat.addColumn('C', '{0:08x}', 8)
+        self.tableformat.addColumn('10', '{0:08x}', 8)
+        self.tableformat.addColumn('14', '{0:08x}', 8)
+        self.tableformat.addColumn('18', '{0:08x}', 8)
+        self.tableformat.addColumn('1C', '{0:08x}', 8)
+        self.tableformat.addColumn('20', '{0:08x}', 8)
+        self.tableformat.addColumn('24', '{0:08x}', 8)
+        self.tableformat.addColumn('28', '{0:08x}', 8)
+        self.tableformat.addColumn('2C', '{0:08x}', 8)
+        self.tableformat.addColumn('30', '{0:08x}', 8)
+        self.tableformat.addColumn('34', '{0:08x}', 8)
+        self.tableformat.addColumn('38', '{0:08x}', 8)
+        self.tableformat.addColumn('3C', '{0:08x}', 8)
+        self.NumSets = 0x80
+        self.NumWays = 4
+        self.NumTagRegs = 2
+        self.RegSize = 4
+        self.cpu_name = "KRYO4SILVER"
+
+    def parse_dump(self):
+        tagfile_name = 'tag_scratch'
+        self.kryo_cache_parse("DCT", 0, tagfile_name)
+
+        datafile_name = 'data_scratch'
+        """the input file is the dump for this DCACHE, and this is divided into
+           two parts: the tag contents for all of the DCACHE, followed by the
+           data contents for all of the DCACHE. As such, you must calculate the
+           size of the tag content for the DCACHE to get the offset into the
+           dump where the data contents start."""
+        data_offset = self.NumWays * self.NumSets * self.RegSize *\
+                      self.NumTagRegs
+        self.kryo_cache_parse("DCD", data_offset, datafile_name)
+        self.post_process(datafile_name, tagfile_name)
+
+
+class L1_ICache_KRYO4XX_GOLD(CacheDumpType_v2):
+    def __init__(self):
+        super(L1_ICache_KRYO4XX_GOLD, self).__init__()
+        self.cpu_name = "KRYO4GOLD"
+        self.tableformat = TableOutputFormat()
+        self.tableformat.addColumn('Set', '{0:03x}', 3)
+        self.tableformat.addColumn('Way', '{0:01x}', 1)
+        self.tableformat.addColumn('Parity', '{0:01x}', 1)
+        self.tableformat.addColumn('ISA', '{0:01x}', 1)
+        self.tableformat.addColumn('PA', '{0:08x}', 8)
+        self.tableformat.addColumn('NS', '{0:01x}', 1)
+        self.tableformat.addColumn('0', '{0:08x}', 8)
+        self.tableformat.addColumn('4', '{0:08x}', 8)
+        self.tableformat.addColumn('8', '{0:08x}', 8)
+        self.tableformat.addColumn('C', '{0:08x}', 8)
+        self.tableformat.addColumn('10', '{0:08x}', 8)
+        self.tableformat.addColumn('14', '{0:08x}', 8)
+        self.tableformat.addColumn('18', '{0:08x}', 8)
+        self.tableformat.addColumn('1C', '{0:08x}', 8)
+        self.tableformat.addColumn('20', '{0:08x}', 8)
+        self.tableformat.addColumn('24', '{0:08x}', 8)
+        self.tableformat.addColumn('28', '{0:08x}', 8)
+        self.tableformat.addColumn('2C', '{0:08x}', 8)
+        self.tableformat.addColumn('30', '{0:08x}', 8)
+        self.tableformat.addColumn('34', '{0:08x}', 8)
+        self.tableformat.addColumn('38', '{0:08x}', 8)
+        self.tableformat.addColumn('3C', '{0:08x}', 8)
+        self.NumSets = 0x100
+        self.NumWays = 4
+        self.NumTagRegs = 1
+        self.RegSize = 4
+
+    def parse_dump(self):
+        tagfile_name = 'tag_scratch'
+        self.kryo_cache_parse("ICT", 0, tagfile_name)
+
+        datafile_name = 'data_scratch'
+        """the input file is the dump for this ICACHE, and this is divided into
+           two parts: the tag contents for all of the ICACHE, followed by the
+           data contents for all of the ICACHE. As such, you must calculate the
+           size of the tag content for the ICACHE to get the offset into the
+           dump where the data contents start."""
+        data_offset = self.NumWays * self.NumSets * self.RegSize *\
+                      self.NumTagRegs
+        self.kryo_cache_parse("ICD", data_offset, datafile_name)
+        self.post_process(datafile_name, tagfile_name)
+
+class L1_DCache_KRYO4XX_GOLD(CacheDumpType_v2):
+    def __init__(self):
+        super(L1_DCache_KRYO4XX_GOLD, self).__init__()
+        self.cpu_name = "KRYO4GOLD"
+        self.NumSets = 0x100
+        self.NumWays = 4
+        self.NumTagRegs = 1
+        self.RegSize = 8
+        self.tableformat = TableOutputFormat()
+        self.tableformat.addColumn('Set', '{0:03x}', 3)
+        self.tableformat.addColumn('Way', '{0:01x}', 1)
+        self.tableformat.addColumn('MESI', '{0:01x}', 1)
+        self.tableformat.addColumn('WBNA', '{0:01x}', 1)
+        self.tableformat.addColumn('PA(0x)', '{0:08x}', 8)
+        self.tableformat.addColumn('NS', '{0:01x}', 1)
+        self.tableformat.addColumn('ECC', '{0:01x}', 1)
+        self.tableformat.addColumn('0', '{0:08x}', 8)
+        self.tableformat.addColumn('4', '{0:08x}', 8)
+        self.tableformat.addColumn('8', '{0:08x}', 8)
+        self.tableformat.addColumn('C', '{0:08x}', 8)
+        self.tableformat.addColumn('10', '{0:08x}', 8)
+        self.tableformat.addColumn('14', '{0:08x}', 8)
+        self.tableformat.addColumn('18', '{0:08x}', 8)
+        self.tableformat.addColumn('1C', '{0:08x}', 8)
+        self.tableformat.addColumn('20', '{0:08x}', 8)
+        self.tableformat.addColumn('24', '{0:08x}', 8)
+        self.tableformat.addColumn('28', '{0:08x}', 8)
+        self.tableformat.addColumn('2C', '{0:08x}', 8)
+        self.tableformat.addColumn('30', '{0:08x}', 8)
+        self.tableformat.addColumn('34', '{0:08x}', 8)
+        self.tableformat.addColumn('38', '{0:08x}', 8)
+        self.tableformat.addColumn('3C', '{0:08x}', 8)
+
+    def parse_dump(self):
+        tagfile_name = 'tag_scratch'
+        self.kryo_cache_parse("DCT", 0, tagfile_name)
+
+        datafile_name = 'data_scratch'
+        """the input file is the dump for this DCACHE, and this is divided into
+           two parts: the tag contents for all of the DCACHE, followed by the
+           data contents for all of the DCACHE. As such, you must calculate the
+           size of the tag content for the DCACHE to get the offset into the
+           dump where the data contents start."""
+        data_offset = self.NumWays * self.NumSets * self.RegSize *\
+                      self.NumTagRegs
+        self.kryo_cache_parse("DCD", data_offset, datafile_name)
+        self.post_process(datafile_name, tagfile_name)
+
+class L2_Cache_KRYO4XX_GOLD(CacheDumpType_v2):
+    def __init__(self, numsets):
+        super(L2_Cache_KRYO4XX_GOLD, self).__init__()
+        self.cpu_name = "KRYO4GOLD"
+        self.NumSets = numsets
+        self.NumWays = 8
+        self.NumTagRegs = 2
+        self.RegSize = 8
+        self.tableformat = TableOutputFormat()
+        self.tableformat.addColumn('Set', '{0:03x}', 3)
+        self.tableformat.addColumn('Way', '{0:01x}', 1)
+        self.tableformat.addColumn('MESI', '{0:01x}', 1)
+        self.tableformat.addColumn('Valid', '{0:01x}', 1)
+        self.tableformat.addColumn('OA', '{0:01x}', 1)
+        self.tableformat.addColumn('Shareable', '{0:01x}', 1)
+        self.tableformat.addColumn('VirtIndex', '{0:01x}', 1)
+        self.tableformat.addColumn('NS', '{0:01x}', 1)
+        self.tableformat.addColumn('PA', '{0:08x}', 8)
+        self.tableformat.addColumn('PBHA', '{0:01x}', 1)
+        self.tableformat.addColumn('ECC', '{0:02x}', 2)
+        self.tableformat.addColumn('0', '{0:08x}', 8)
+        self.tableformat.addColumn('4', '{0:08x}', 8)
+        self.tableformat.addColumn('8', '{0:08x}', 8)
+        self.tableformat.addColumn('C', '{0:08x}', 8)
+        self.tableformat.addColumn('10', '{0:08x}', 8)
+        self.tableformat.addColumn('14', '{0:08x}', 8)
+        self.tableformat.addColumn('18', '{0:08x}', 8)
+        self.tableformat.addColumn('1C', '{0:08x}', 8)
+        self.tableformat.addColumn('20', '{0:08x}', 8)
+        self.tableformat.addColumn('24', '{0:08x}', 8)
+        self.tableformat.addColumn('28', '{0:08x}', 8)
+        self.tableformat.addColumn('2C', '{0:08x}', 8)
+        self.tableformat.addColumn('30', '{0:08x}', 8)
+        self.tableformat.addColumn('34', '{0:08x}', 8)
+        self.tableformat.addColumn('38', '{0:08x}', 8)
+        self.tableformat.addColumn('3C', '{0:08x}', 8)
+
+    def parse_dump(self):
+        tagfile_name = 'tag_scratch'
+        if(self.NumSets == 0x200):
+            cmds = ["L2256CT", "L2256CD"]
+        else:
+            cmds = ["L2512CT", "L2512CD"]
+
+        self.kryo_cache_parse(cmds[0], 0, tagfile_name)
+
+        datafile_name = 'data_scratch'
+        """the input file is the dump for the cache, and this is divided into
+           two parts: the tag contents for all of the cache, followed by the
+           data contents for all of the cache. As such, you must calculate the
+           size of the tag content for the cache to get the offset into the
+           dump where the data contents start."""
+        data_offset = self.NumWays * self.NumSets * self.RegSize *\
+                      self.NumTagRegs
+        self.kryo_cache_parse(cmds[1], data_offset, datafile_name)
+        self.post_process(datafile_name, tagfile_name)
+
+
+
 # "msm8998"
 lookuptable[("8998", 0x80, 0x14)] = L1_DCache_KRYO2XX_SILVER()
 lookuptable[("8998", 0x81, 0x14)] = L1_DCache_KRYO2XX_SILVER()
@@ -697,6 +1034,37 @@ lookuptable[("qcs605", 0x67, 0x14)] = L1_ICache_KRYO3XX_GOLD()
 
 lookuptable[("qcs605", 0x140, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
 lookuptable[("qcs605", 0x141, 0x14)] = LLC_SYSTEM_CACHE_KRYO3XX()
+
+# "sm8150"
+lookuptable[("sm8150", 0x80, 0x14)] = L1_DCache_KRYO4XX_SILVER()
+lookuptable[("sm8150", 0x81, 0x14)] = L1_DCache_KRYO4XX_SILVER()
+lookuptable[("sm8150", 0x82, 0x14)] = L1_DCache_KRYO4XX_SILVER()
+lookuptable[("sm8150", 0x83, 0x14)] = L1_DCache_KRYO4XX_SILVER()
+lookuptable[("sm8150", 0x84, 0x14)] = L1_DCache_KRYO4XX_GOLD()
+lookuptable[("sm8150", 0x85, 0x14)] = L1_DCache_KRYO4XX_GOLD()
+lookuptable[("sm8150", 0x86, 0x14)] = L1_DCache_KRYO4XX_GOLD()
+lookuptable[("sm8150", 0x87, 0x14)] = L1_DCache_KRYO4XX_GOLD()
+
+
+lookuptable[("sm8150", 0x60, 0x14)] = L1_ICache_KRYO4XX_SILVER()
+lookuptable[("sm8150", 0x61, 0x14)] = L1_ICache_KRYO4XX_SILVER()
+lookuptable[("sm8150", 0x62, 0x14)] = L1_ICache_KRYO4XX_SILVER()
+lookuptable[("sm8150", 0x63, 0x14)] = L1_ICache_KRYO4XX_SILVER()
+lookuptable[("sm8150", 0x64, 0x14)] = L1_ICache_KRYO4XX_GOLD()
+lookuptable[("sm8150", 0x65, 0x14)] = L1_ICache_KRYO4XX_GOLD()
+lookuptable[("sm8150", 0x66, 0x14)] = L1_ICache_KRYO4XX_GOLD()
+lookuptable[("sm8150", 0x67, 0x14)] = L1_ICache_KRYO4XX_GOLD()
+
+
+lookuptable[("sm8150", 0x140, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sm8150", 0x141, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sm8150", 0x142, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("sm8150", 0x143, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
+
+lookuptable[("sm8150", 0xc4, 0x10)] = L2_Cache_KRYO4XX_GOLD(numsets=0x200)
+lookuptable[("sm8150", 0xc5, 0x10)] = L2_Cache_KRYO4XX_GOLD(numsets=0x200)
+lookuptable[("sm8150", 0xc6, 0x10)] = L2_Cache_KRYO4XX_GOLD(numsets=0x200)
+lookuptable[("sm8150", 0xc7, 0x10)] = L2_Cache_KRYO4XX_GOLD(numsets=0x400)
 
 # "sdm660"
 lookuptable[("660", 0x80, 0x14)] = L1_DCache_KRYO2XX_SILVER()
@@ -794,6 +1162,26 @@ lookuptable[("8917", 0x65, 0x14)] = L1_ICache_A53()
 lookuptable[("8917", 0x66, 0x14)] = L1_ICache_A53()
 lookuptable[("8917", 0x67, 0x14)] = L1_ICache_A53()
 
+# qcs405
+lookuptable[("qcs405", 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs405", 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs405", 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs405", 0x87, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs405", 0x64, 0x14)] = L1_ICache_A53()
+lookuptable[("qcs405", 0x65, 0x14)] = L1_ICache_A53()
+lookuptable[("qcs405", 0x66, 0x14)] = L1_ICache_A53()
+lookuptable[("qcs405", 0x67, 0x14)] = L1_ICache_A53()
+
+# qcs403
+lookuptable[("qcs403", 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs403", 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs403", 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs403", 0x87, 0x14)] = L1_DCache_A53()
+lookuptable[("qcs403", 0x64, 0x14)] = L1_ICache_A53()
+lookuptable[("qcs403", 0x65, 0x14)] = L1_ICache_A53()
+lookuptable[("qcs403", 0x66, 0x14)] = L1_ICache_A53()
+lookuptable[("qcs403", 0x67, 0x14)] = L1_ICache_A53()
+
 # 8920
 lookuptable[("8920", 0x84, 0x14)] = L1_DCache_A53()
 lookuptable[("8920", 0x85, 0x14)] = L1_DCache_A53()
@@ -877,3 +1265,31 @@ lookuptable[("sdm839", 0x64, 0x14)] = L1_ICache_A53()
 lookuptable[("sdm839", 0x65, 0x14)] = L1_ICache_A53()
 lookuptable[("sdm839", 0x66, 0x14)] = L1_ICache_A53()
 lookuptable[("sdm839", 0x67, 0x14)] = L1_ICache_A53()
+
+# sdm439
+lookuptable[("sdm439", 0x80, 0x14)] = L1_DCache_A53()
+lookuptable[("sdm439", 0x81, 0x14)] = L1_DCache_A53()
+lookuptable[("sdm439", 0x82, 0x14)] = L1_DCache_A53()
+lookuptable[("sdm439", 0x83, 0x14)] = L1_DCache_A53()
+lookuptable[("sdm439", 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[("sdm439", 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[("sdm439", 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[("sdm439", 0x87, 0x14)] = L1_DCache_A53()
+lookuptable[("sdm439", 0x60, 0x14)] = L1_ICache_A53()
+lookuptable[("sdm439", 0x61, 0x14)] = L1_ICache_A53()
+lookuptable[("sdm439", 0x62, 0x14)] = L1_ICache_A53()
+lookuptable[("sdm439", 0x63, 0x14)] = L1_ICache_A53()
+lookuptable[("sdm439", 0x64, 0x14)] = L1_ICache_A53()
+lookuptable[("sdm439", 0x65, 0x14)] = L1_ICache_A53()
+lookuptable[("sdm439", 0x66, 0x14)] = L1_ICache_A53()
+lookuptable[("sdm439", 0x67, 0x14)] = L1_ICache_A53()
+
+# sdm429
+lookuptable[("sdm429", 0x84, 0x14)] = L1_DCache_A53()
+lookuptable[("sdm429", 0x85, 0x14)] = L1_DCache_A53()
+lookuptable[("sdm429", 0x86, 0x14)] = L1_DCache_A53()
+lookuptable[("sdm429", 0x87, 0x14)] = L1_DCache_A53()
+lookuptable[("sdm429", 0x64, 0x14)] = L1_ICache_A53()
+lookuptable[("sdm429", 0x65, 0x14)] = L1_ICache_A53()
+lookuptable[("sdm429", 0x66, 0x14)] = L1_ICache_A53()
+lookuptable[("sdm429", 0x67, 0x14)] = L1_ICache_A53()
