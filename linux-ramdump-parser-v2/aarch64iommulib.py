@@ -284,6 +284,10 @@ def get_mapping_info(ramdump, pg_table, index):
 
 def fl_entry(ramdump, fl_pte, skip_fl):
     fl_pg_table_entry = ramdump.read_u64(fl_pte)
+
+    if fl_pg_table_entry is None:
+        return (0, 0)
+
     sl_pte = fl_pg_table_entry & FLSL_BASE_MASK
 
     if skip_fl == 1:
