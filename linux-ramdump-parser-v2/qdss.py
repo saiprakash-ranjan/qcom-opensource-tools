@@ -217,6 +217,8 @@ class QDSSDump():
         self.etm_regs2 = None
         self.etm_regs3 = None
         self.dbgui_start = None
+        self.tmc_etf_swao_start = None
+        self.tmc_etf_swao_reg_start = None
 
     # Assumptions: Any address given here has been checked for correct magic
     def print_tmc_etf(self, ram_dump):
@@ -305,6 +307,32 @@ class QDSSDump():
             print_out_str('!!! ETF was not the current sink!')
 
         tmc_etf.close()
+
+    def save_etf_swao_bin(self, ram_dump):
+        tmc_etf_swao = ram_dump.open_file('tmc-etf-swao.bin')
+        if self.tmc_etf_swao_reg_start is None or self.tmc_etf_swao_start is None:
+            print_out_str('!!! ETF SWAO was not the current sink!')
+            tmc_etf_swao.close()
+            return
+
+        ctl_offset, ctl_desc = tmc_registers['CTL']
+        mode_offset, mode_desc = tmc_registers['MODE']
+        rsz_offset, rsz_desc = tmc_registers['RSZ']
+
+        ctl = ram_dump.read_u32(self.tmc_etf_swao_reg_start + ctl_offset, False)
+        mode = ram_dump.read_u32(self.tmc_etf_swao_reg_start + mode_offset, False)
+        rsz = ram_dump.read_u32(self.tmc_etf_swao_reg_start + rsz_offset, False)
+        # rsz is given in words so convert to bytes
+        rsz = 4 * rsz
+
+        if (ctl & 0x1) == 1 and (mode == 0):
+            for i in range(0, rsz):
+                val = ram_dump.read_byte(self.tmc_etf_swao_start + i, False)
+                tmc_etf_swao.write(struct.pack('<B', val))
+        else:
+            print_out_str('!!! ETF SWAO was not the current sink!')
+
+        tmc_etf_swao.close()
 
     def read_sg_data(self, dbaddr, sts, rwpval, ram_dump, tmc_etr):
         start = dbaddr
