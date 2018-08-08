@@ -142,6 +142,8 @@ class DebugImage_v2():
             return
         if ram_dump.arm64:
             arch = "aarch64"
+        else:
+            arch = "aarch32"
         if client_id == client.MSM_DUMP_DATA_SCANDUMP:
             output = os.path.join(ram_dump.outdir, scandump_file_prefix)
             input = os.path.join(ram_dump.outdir, "core.bin")
