@@ -728,6 +728,23 @@ lookuptable[("sm8150", 0x125, 0x14)] = L2_TLB_KRYO4XX_GOLD();
 lookuptable[("sm8150", 0x126, 0x14)] = L2_TLB_KRYO4XX_GOLD();
 lookuptable[("sm8150", 0x127, 0x14)] = L2_TLB_KRYO4XX_GOLD();
 
+#steppe
+lookuptable[("steppe", 0x26, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
+lookuptable[("steppe", 0x27, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
+
+lookuptable[("steppe", 0x46, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
+lookuptable[("steppe", 0x47, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
+
+lookuptable[("steppe", 0x120, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x121, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x122, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x123, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x124, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x125, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x126, 0x14)] = L2_TLB_KRYO4XX_GOLD()
+lookuptable[("steppe", 0x127, 0x14)] = L2_TLB_KRYO4XX_GOLD()
+
+
 # "sdm845"
 lookuptable[("sdm845", 0x120, 0x14)] = L2_TLB_KRYO3XX_SILVER()
 lookuptable[("sdm845", 0x121, 0x14)] = L2_TLB_KRYO3XX_SILVER()
