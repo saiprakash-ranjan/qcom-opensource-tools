@@ -708,25 +708,25 @@ class L2_TLB_KRYO4XX_GOLD(TlbDumpType_v3):
         self.post_process(datafile_name)
 
 
-#sm8150
-lookuptable[("sm8150", 0x24, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
-lookuptable[("sm8150", 0x25, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
-lookuptable[("sm8150", 0x26, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
-lookuptable[("sm8150", 0x27, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
+#msmnile
+lookuptable[("msmnile", 0x24, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
+lookuptable[("msmnile", 0x25, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
+lookuptable[("msmnile", 0x26, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
+lookuptable[("msmnile", 0x27, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
 
-lookuptable[("sm8150", 0x44, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
-lookuptable[("sm8150", 0x45, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
-lookuptable[("sm8150", 0x46, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
-lookuptable[("sm8150", 0x47, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
+lookuptable[("msmnile", 0x44, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
+lookuptable[("msmnile", 0x45, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
+lookuptable[("msmnile", 0x46, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
+lookuptable[("msmnile", 0x47, 0x14)] = L1_DTLB_KRYO4XX_GOLD()
 
-lookuptable[("sm8150", 0x120, 0x14)] = L2_TLB_KRYO4XX_SILVER()
-lookuptable[("sm8150", 0x121, 0x14)] = L2_TLB_KRYO4XX_SILVER()
-lookuptable[("sm8150", 0x122, 0x14)] = L2_TLB_KRYO4XX_SILVER()
-lookuptable[("sm8150", 0x123, 0x14)] = L2_TLB_KRYO4XX_SILVER()
-lookuptable[("sm8150", 0x124, 0x14)] = L2_TLB_KRYO4XX_GOLD();
-lookuptable[("sm8150", 0x125, 0x14)] = L2_TLB_KRYO4XX_GOLD();
-lookuptable[("sm8150", 0x126, 0x14)] = L2_TLB_KRYO4XX_GOLD();
-lookuptable[("sm8150", 0x127, 0x14)] = L2_TLB_KRYO4XX_GOLD();
+lookuptable[("msmnile", 0x120, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("msmnile", 0x121, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("msmnile", 0x122, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("msmnile", 0x123, 0x14)] = L2_TLB_KRYO4XX_SILVER()
+lookuptable[("msmnile", 0x124, 0x14)] = L2_TLB_KRYO4XX_GOLD();
+lookuptable[("msmnile", 0x125, 0x14)] = L2_TLB_KRYO4XX_GOLD();
+lookuptable[("msmnile", 0x126, 0x14)] = L2_TLB_KRYO4XX_GOLD();
+lookuptable[("msmnile", 0x127, 0x14)] = L2_TLB_KRYO4XX_GOLD();
 
 #steppe
 lookuptable[("steppe", 0x26, 0x14)] = L1_ITLB_KRYO4XX_GOLD()
