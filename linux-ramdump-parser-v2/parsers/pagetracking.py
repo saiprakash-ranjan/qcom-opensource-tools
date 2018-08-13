@@ -111,7 +111,12 @@ class PageTracking(RamParser):
                 phys = pfn << 12
                 if phys is None or phys is 0:
                     continue
-                offset = phys >> 30
+                if self.ramdump.is_config_defined('CONFIG_MEMORY_HOTPLUG'):
+                    section_size_bits = int(self.ramdump.get_config_val(
+                                    'CONFIG_HOTPLUG_SIZE_BITS'))
+                    offset = phys >> section_size_bits
+                else:
+                    offset = phys >> 30
 
                 if self.ramdump.is_config_defined('CONFIG_SPARSEMEM'):
                     mem_section_0_offset = (

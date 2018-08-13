@@ -51,8 +51,10 @@ class client(object):
     MSM_DUMP_DATA_MISC = 0xE8
     MSM_DUMP_DATA_VSENSE = 0xE9
     MSM_DUMP_DATA_TMC_ETF = 0xF0
+    MSM_DUMP_DATA_TMC_ETF_SWAO = 0xF1
     MSM_DUMP_DATA_TMC_ETR_REG = 0x100
     MSM_DUMP_DATA_TMC_ETF_REG = 0x101
+    MSM_DUMP_DATA_TMC_ETF_SWAO_REG = 0x102
     MSM_DUMP_DATA_LOG_BUF = 0x110
     MSM_DUMP_DATA_LOG_BUF_FIRST_IDX = 0x111
     MSM_DUMP_DATA_L2_TLB = 0x120
@@ -81,7 +83,9 @@ client_types = [
     ('MSM_DUMP_DATA_DCC_REG', 'parse_dcc_reg'),
     ('MSM_DUMP_DATA_DCC_SRAM', 'parse_dcc_sram'),
     ('MSM_DUMP_DATA_TMC_ETF', 'parse_qdss_common'),
+    ('MSM_DUMP_DATA_TMC_ETF_SWAO', 'parse_qdss_common'),
     ('MSM_DUMP_DATA_TMC_ETR_REG', 'parse_qdss_common'),
+    ('MSM_DUMP_DATA_TMC_ETF_SWAO_REG', 'parse_qdss_common'),
     ('MSM_DUMP_DATA_TMC_REG', 'parse_qdss_common'),
     ('MSM_DUMP_DATA_L2_TLB', 'parse_tlb_common'),
     ('MSM_DUMP_DATA_LLC_CACHE', 'parse_system_cache_common'),
@@ -92,6 +96,8 @@ qdss_tag_to_field_name = {
     'MSM_DUMP_DATA_TMC_ETR_REG': 'tmc_etr_start',
     'MSM_DUMP_DATA_TMC_REG': 'tmc_etr_start',
     'MSM_DUMP_DATA_TMC_ETF': 'etf_start',
+    'MSM_DUMP_DATA_TMC_ETF_SWAO': 'tmc_etf_swao_start',
+    'MSM_DUMP_DATA_TMC_ETF_SWAO_REG': 'tmc_etf_swao_reg_start',
     'MSM_DUMP_DATA_DBGUI_REG': 'dbgui_start',
 }
 
@@ -142,6 +148,8 @@ class DebugImage_v2():
             return
         if ram_dump.arm64:
             arch = "aarch64"
+        else:
+            arch = "aarch32"
         if client_id == client.MSM_DUMP_DATA_SCANDUMP:
             output = os.path.join(ram_dump.outdir, scandump_file_prefix)
             input = os.path.join(ram_dump.outdir, "core.bin")
@@ -894,6 +902,7 @@ class DebugImage_v2():
         self.qdss.dump_standard(ram_dump)
         if not ram_dump.skip_qdss_bin:
             self.qdss.save_etf_bin(ram_dump)
+            self.qdss.save_etf_swao_bin(ram_dump)
             self.qdss.save_etr_bin(ram_dump)
         if ram_dump.qtf:
             self.parse_qtf(ram_dump)

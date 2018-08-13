@@ -1066,6 +1066,31 @@ lookuptable[("sm8150", 0xc5, 0x10)] = L2_Cache_KRYO4XX_GOLD(numsets=0x200)
 lookuptable[("sm8150", 0xc6, 0x10)] = L2_Cache_KRYO4XX_GOLD(numsets=0x200)
 lookuptable[("sm8150", 0xc7, 0x10)] = L2_Cache_KRYO4XX_GOLD(numsets=0x400)
 
+# "steppe"
+lookuptable[("steppe", 0x80, 0x14)] = L1_DCache_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x81, 0x14)] = L1_DCache_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x82, 0x14)] = L1_DCache_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x83, 0x14)] = L1_DCache_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x84, 0x14)] = L1_DCache_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x85, 0x14)] = L1_DCache_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x86, 0x14)] = L1_DCache_KRYO4XX_GOLD()
+lookuptable[("steppe", 0x87, 0x14)] = L1_DCache_KRYO4XX_GOLD()
+
+
+lookuptable[("steppe", 0x60, 0x14)] = L1_ICache_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x61, 0x14)] = L1_ICache_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x62, 0x14)] = L1_ICache_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x63, 0x14)] = L1_ICache_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x64, 0x14)] = L1_ICache_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x65, 0x14)] = L1_ICache_KRYO4XX_SILVER()
+lookuptable[("steppe", 0x66, 0x14)] = L1_ICache_KRYO4XX_GOLD()
+lookuptable[("steppe", 0x67, 0x14)] = L1_ICache_KRYO4XX_GOLD()
+
+lookuptable[("steppe", 0x140, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
+
+lookuptable[("steppe", 0xc6, 0x10)] = L2_Cache_KRYO4XX_GOLD(numsets=0x200)
+lookuptable[("steppe", 0xc7, 0x10)] = L2_Cache_KRYO4XX_GOLD(numsets=0x200)
+
 # "sdm660"
 lookuptable[("660", 0x80, 0x14)] = L1_DCache_KRYO2XX_SILVER()
 lookuptable[("660", 0x81, 0x14)] = L1_DCache_KRYO2XX_SILVER()
