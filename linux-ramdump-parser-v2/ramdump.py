@@ -1003,6 +1003,12 @@ class RamDump():
                 startup_script.write('mmu.on\n'.encode('ascii', 'ignore'))
                 startup_script.write('mmu.pt.list 0xffffff8000000000\n'.encode('ascii', 'ignore'))
             else:
+                # ARM-32: MMU is enabled by default on most platforms.
+                mmu_enabled = 1
+                if self.mmu is None:
+                    mmu_enabled = 0
+                startup_script.write(
+                    'PER.S.F C15:0x1 %L 0x{0:x}\n'.format(mmu_enabled).encode('ascii', 'ignore'))
                 startup_script.write(
                     'PER.S.F C15:0x2 %L 0x{0:x}\n'.format(self.mmu.ttbr).encode('ascii', 'ignore'))
                 if isinstance(self.mmu, Armv7LPAEMMU):
@@ -1062,9 +1068,8 @@ class RamDump():
             mod_sym_path = mod_tbl_ent.get_sym_path()
             if mod_sym_path != '':
                 where = os.path.abspath(mod_sym_path)
-                where += ' 0x{0:x}'.format(mod_tbl_ent.module_offset)
-                dloadelf = 'data.load.elf {} /nocode /noclear\n'.format(where)
-                startup_script.write(dloadelf.encode('ascii', 'ignore'))
+                ld_mod_sym = 'task.symbol.loadmod "{}"\n'.format(where)
+                startup_script.write(ld_mod_sym.encode('ascii', 'ignore'))
 
         if not self.minidump:
             startup_script.write('task.dtask\n'.encode('ascii', 'ignore'))
