@@ -28,6 +28,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 from parser_util import register_parser, RamParser
+from print_out import print_out_str
 from rb_tree import RbTree
 import logging
 import os
@@ -53,9 +54,11 @@ def ion_buffer_info(self, ramdump, ion_info):
                        "buffer information")
         return
 
-    ion_info.write("*****Prasing dma buf info for ion leak debugging*****\n\n")
+    ion_info.write("*****Parsing dma buf info for ion leak debugging*****\n\n")
     head_offset = ramdump.field_offset('struct dma_buf_list', 'head')
     head = ramdump.read_word(db_list + head_offset)
+    next_offset = ramdump.field_offset('struct list_head', 'next')
+    prev_offset = ramdump.field_offset('struct list_head', 'prev')
     list_node_offset = ramdump.field_offset('struct dma_buf', 'list_node')
     size_offset = ramdump.field_offset('struct dma_buf', 'size')
     file_offset = ramdump.field_offset('struct dma_buf', 'file')
@@ -74,12 +77,147 @@ def ion_buffer_info(self, ramdump, ion_info):
         exp_name = ramdump.read_cstring(exp_name, 48)
         dma_buf_info.append([file, name, hex(size), bytes_to_KB(size)])
         head = ramdump.read_word(head)
+        next_node = ramdump.read_word(head + next_offset)
+        if next_node == 0:
+            print_out_str("db_list is corrupted!\nComplete ion buffer "
+                          "ionformation may not be available")
+            head = ramdump.read_word(db_list + head_offset + prev_offset)
+            while (head != db_list):
+                dma_buf_addr = head - list_node_offset
+                size = ramdump.read_word(dma_buf_addr + size_offset)
+                file = ramdump.read_word(dma_buf_addr + file_offset)
+                exp_name = ramdump.read_word(dma_buf_addr + exp_name_offset)
+                name = ramdump.read_word(dma_buf_addr + name_offset)
+                name = ramdump.read_cstring(name, 48)
+                exp_name = ramdump.read_cstring(exp_name, 48)
+                dma_buf_info.append([file, name, hex(size), bytes_to_KB(size)])
+                head = ramdump.read_word(head + prev_offset)
+                prev_node = ramdump.read_word(head + prev_offset)
+                if prev_node == 0:
+                    break
+            break
 
     dma_buf_info = sorted(dma_buf_info, key=lambda l: l[3], reverse=True)
     for item in dma_buf_info:
         str = "v.v (struct file *)0x{0:x}\t {1:15} {2:10} ({3} KB)\n".\
                     format(item[0], item[1], item[2], item[3])
         ion_info.write(str)
+
+
+def get_bufs(task, bufs, ion_info, ramdump):
+    t_size = 0
+    dma_buf_fops = ramdump.address_of('dma_buf_fops')
+    if dma_buf_fops is None:
+        ion_info.write("NOTE: 'dma_buf_fops' not found for file information\n")
+        return 0
+    timekeeper = ramdump.address_of('shadow_timekeeper')
+    if timekeeper is None:
+        ion_info.write("NOTE: 'timekeeper' not found for timing information\n")
+        return 0
+
+    files_offset = ramdump.field_offset('struct task_struct', 'files')
+    fdt_offset = ramdump.field_offset('struct files_struct', 'fdt')
+    fd_offset = ramdump.field_offset('struct fdtable', 'fd')
+    max_fds_offset = ramdump.field_offset('struct fdtable', 'max_fds')
+    f_op_offset = ramdump.field_offset('struct file', 'f_op')
+    private_data_offset = ramdump.field_offset('struct file', 'private_data')
+    size_offset = ramdump.field_offset('struct dma_buf', 'size')
+    name_offset = ramdump.field_offset('struct dma_buf', 'name')
+    stime_offset = ramdump.field_offset('struct timekeeper', 'xtime_sec')
+
+    if task is None:
+        return 0
+    files = ramdump.read_pointer(task + files_offset)
+    if files is None:
+        return 0
+    fdt = ramdump.read_pointer(files + fdt_offset)
+    if fdt is None:
+        return 0
+    fd = ramdump.read_pointer(fdt + fd_offset)
+    max_fds = ramdump.read_halfword(fdt + max_fds_offset)
+    stime = ramdump.read_word(timekeeper + stime_offset)
+    ctime_offset = ramdump.field_offset('struct dma_buf', 'ctime')
+    if ctime_offset is not None:
+        ctime_offset += ramdump.field_offset('struct timespec', 'tv_sec')
+    for i in range(max_fds):
+        file = ramdump.read_pointer(fd + i*8)
+        if (file == 0):
+            continue
+        f_op = ramdump.read_pointer(file + f_op_offset)
+        if (f_op != dma_buf_fops):
+            continue
+        dmabuf = ramdump.read_pointer(file + private_data_offset)
+        size = ramdump.read_word(dmabuf + size_offset)
+        time = 0
+        if ctime_offset is not None:
+            ctime = ramdump.read_word(dmabuf + ctime_offset)
+            time = stime - ctime
+        name = ramdump.read_word(dmabuf + name_offset)
+        name = ramdump.read_cstring(name, 48)
+
+        item = [name, hex(size), bytes_to_KB(size), time]
+        if item not in bufs:
+            t_size = t_size + size
+            bufs.append(item)
+    bufs.sort(key=lambda item: -item[2])
+    return t_size
+
+
+def get_proc_bufs(task, bufs, ion_info, ramdump):
+    group_offset = ramdump.field_offset('struct task_struct', 'thread_group')
+    group_node = ramdump.read_word(task + group_offset)
+    offset_signal = ramdump.field_offset('struct task_struct', 'signal')
+    size = 0;
+    curr = None
+    while curr != task:
+        group_node = ramdump.read_pointer(group_node)
+        curr = group_node - group_offset
+        signal_struct = ramdump.read_word(curr + offset_signal)
+        if signal_struct == 0 or signal_struct is None:
+            break
+        size += get_bufs(curr, bufs, ion_info, ramdump)
+    return size
+
+
+def ion_proc_info(self, ramdump, ion_info):
+    ion_info = ramdump.open_file('ionproc.txt')
+    init_task = ramdump.address_of('init_task')
+    if init_task is None:
+        ion_info.write("NOTE: 'init_task' not found for process information")
+        return
+    ion_info.write("*****Parsing dma proc info for ion leak debugging*****\n")
+    node_offset = ramdump.field_offset('struct task_struct', 'tasks')
+    offset_signal = ramdump.field_offset('struct task_struct', 'signal')
+    list_node = ramdump.read_word(init_task + node_offset)
+    task = None
+    pid_offset = ramdump.field_offset('struct task_struct', 'tgid')
+    comm_offset = ramdump.field_offset('struct task_struct', 'comm')
+    dma_procs = []
+    while (task != init_task):
+        list_node = ramdump.read_pointer(list_node)
+        task = list_node - node_offset
+        signal_struct = ramdump.read_word(task + offset_signal)
+        if signal_struct == 0 or signal_struct is None:
+            break
+        bufs = []
+        size = get_proc_bufs(task, bufs, ion_info, ramdump)
+        if (size == 0):
+            continue
+        comm = ramdump.read_cstring(task + comm_offset)
+        pid = ramdump.read_int(task + pid_offset)
+        dma_procs.append([comm, pid, bytes_to_KB(size), bufs])
+
+    dma_procs.sort(key=lambda item: -item[2])
+    for proc in dma_procs:
+        str = "\n{0} (PID {1}) size (KB): {2}\n"\
+            .format(proc[0], proc[1], proc[2])
+        ion_info.write(str)
+        ion_info.write("{0:15} {1:15} {2:15} {3:15}\n".format(
+                'Name', 'Size', 'Size in KB', 'Time Alive(sec)'))
+        for item in proc[3]:
+            str = "{0:15} {1:15} {2:10} {3:15}\n".\
+                format(item[0], item[1], item[2], item[3])
+            ion_info.write(str)
 
 
 def do_dump_ionbuff_info(self, ramdump, ion_info):
@@ -413,5 +551,6 @@ class DumpIonBuffer(RamParser):
             self.logger.info("Starting --print-ionbuffer")
             if (self.ramdump.kernel_version >= (4, 14)):
                 ion_buffer_info(self, self.ramdump, ion_info)
+                ion_proc_info(self, self.ramdump, ion_info)
             else:
                 do_dump_ionbuff_info(self, self.ramdump, ion_info)
