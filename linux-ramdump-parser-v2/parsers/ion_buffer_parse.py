@@ -28,6 +28,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 from parser_util import register_parser, RamParser
+from print_out import print_out_str
 from rb_tree import RbTree
 import logging
 import os
@@ -56,6 +57,8 @@ def ion_buffer_info(self, ramdump, ion_info):
     ion_info.write("*****Parsing dma buf info for ion leak debugging*****\n\n")
     head_offset = ramdump.field_offset('struct dma_buf_list', 'head')
     head = ramdump.read_word(db_list + head_offset)
+    next_offset = ramdump.field_offset('struct list_head', 'next')
+    prev_offset = ramdump.field_offset('struct list_head', 'prev')
     list_node_offset = ramdump.field_offset('struct dma_buf', 'list_node')
     size_offset = ramdump.field_offset('struct dma_buf', 'size')
     file_offset = ramdump.field_offset('struct dma_buf', 'file')
@@ -74,6 +77,25 @@ def ion_buffer_info(self, ramdump, ion_info):
         exp_name = ramdump.read_cstring(exp_name, 48)
         dma_buf_info.append([file, name, hex(size), bytes_to_KB(size)])
         head = ramdump.read_word(head)
+        next_node = ramdump.read_word(head + next_offset)
+        if next_node == 0:
+            print_out_str("db_list is corrupted!\nComplete ion buffer "
+                          "ionformation may not be available")
+            head = ramdump.read_word(db_list + head_offset + prev_offset)
+            while (head != db_list):
+                dma_buf_addr = head - list_node_offset
+                size = ramdump.read_word(dma_buf_addr + size_offset)
+                file = ramdump.read_word(dma_buf_addr + file_offset)
+                exp_name = ramdump.read_word(dma_buf_addr + exp_name_offset)
+                name = ramdump.read_word(dma_buf_addr + name_offset)
+                name = ramdump.read_cstring(name, 48)
+                exp_name = ramdump.read_cstring(exp_name, 48)
+                dma_buf_info.append([file, name, hex(size), bytes_to_KB(size)])
+                head = ramdump.read_word(head + prev_offset)
+                prev_node = ramdump.read_word(head + prev_offset)
+                if prev_node == 0:
+                    break
+            break
 
     dma_buf_info = sorted(dma_buf_info, key=lambda l: l[3], reverse=True)
     for item in dma_buf_info:
@@ -144,11 +166,15 @@ def get_bufs(task, bufs, ion_info, ramdump):
 def get_proc_bufs(task, bufs, ion_info, ramdump):
     group_offset = ramdump.field_offset('struct task_struct', 'thread_group')
     group_node = ramdump.read_word(task + group_offset)
+    offset_signal = ramdump.field_offset('struct task_struct', 'signal')
     size = 0;
     curr = None
     while curr != task:
         group_node = ramdump.read_pointer(group_node)
         curr = group_node - group_offset
+        signal_struct = ramdump.read_word(curr + offset_signal)
+        if signal_struct == 0 or signal_struct is None:
+            break
         size += get_bufs(curr, bufs, ion_info, ramdump)
     return size
 
@@ -161,6 +187,7 @@ def ion_proc_info(self, ramdump, ion_info):
         return
     ion_info.write("*****Parsing dma proc info for ion leak debugging*****\n")
     node_offset = ramdump.field_offset('struct task_struct', 'tasks')
+    offset_signal = ramdump.field_offset('struct task_struct', 'signal')
     list_node = ramdump.read_word(init_task + node_offset)
     task = None
     pid_offset = ramdump.field_offset('struct task_struct', 'tgid')
@@ -169,6 +196,9 @@ def ion_proc_info(self, ramdump, ion_info):
     while (task != init_task):
         list_node = ramdump.read_pointer(list_node)
         task = list_node - node_offset
+        signal_struct = ramdump.read_word(task + offset_signal)
+        if signal_struct == 0 or signal_struct is None:
+            break
         bufs = []
         size = get_proc_bufs(task, bufs, ion_info, ramdump)
         if (size == 0):
