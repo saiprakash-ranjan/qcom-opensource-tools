@@ -12,6 +12,8 @@
 import struct
 import itertools
 from print_out import print_out_str
+from iommulib import IommuLib, MSM_SMMU_DOMAIN, MSM_SMMU_AARCH64_DOMAIN, ARM_SMMU_DOMAIN
+from aarch64iommulib import create_flat_mappings, create_collapsed_mapping
 
 tmc_registers = {
     'RSZ': (0x004, 'RAM Size'),
@@ -393,6 +395,49 @@ class QDSSDump():
                     break
                 tmc_etr.write(ram_dump.read_physical(it[0], len(it)))
 
+    def dump_etr_iova(self, start, size, ram_dump, tmc_etr, collapsed_mapping):
+        pyh_start = None;
+        for virt in sorted(collapsed_mapping.keys()):
+            mapping = collapsed_mapping[virt]
+            if mapping.mapped and size != 0:
+                if start in range(mapping.virt_start, mapping.virt_end):
+                    dump_size = min(size, mapping.virt_end - start + 1)
+                    pyh_start = mapping.phys_start + (start - mapping.virt_start)
+                    it = range(pyh_start, pyh_start + dump_size)
+                    size = size - dump_size
+                    start = start + dump_size
+                    tmc_etr.write(ram_dump.read_physical(it[0], len(it)))
+        if pyh_start is None:
+            return False
+        else:
+            return True
+
+    def parse_domain(self, dbaddr, rsz, sts, rwpval, ram_dump, tmc_etr, d, domain_num):
+        if d.client_name.endswith(".tmc"):
+            flat_mapping = create_flat_mappings(ram_dump, d.pg_table, d.level)
+            collapsed_mapping = create_collapsed_mapping(flat_mapping)
+            if (sts & 0x1) == 1:
+                self.dump_etr_iova(rwpval, dbaddr + rsz - rwpval, ram_dump, tmc_etr, collapsed_mapping)
+                return self.dump_etr_iova(dbaddr, rwpval - dbaddr, ram_dump, tmc_etr, collapsed_mapping)
+            else:
+                return self.dump_etr_iova(dbaddr, rsz, ram_dump, tmc_etr, collapsed_mapping)
+        else:
+            return False;
+        return True;
+
+    def read_data_iova(self, dbaddr, rsz, sts, rwpval, ram_dump, tmc_etr):
+        ilib = IommuLib(ram_dump)
+        domain_list = ilib.domain_list
+        if domain_list is None:
+            return False
+        for (domain_num, d) in enumerate(domain_list):
+            if ((d.domain_type == ARM_SMMU_DOMAIN) or
+                    (d.domain_type == MSM_SMMU_AARCH64_DOMAIN)):
+                if self.parse_domain(dbaddr, rsz, sts, rwpval, ram_dump, tmc_etr, d, domain_num):
+                    print_out_str("Found a correct domain for tmc")
+                    return True
+        return False
+
     def save_etr_bin(self, ram_dump):
         tmc_etr = ram_dump.open_file('tmc-etr.bin')
         if self.tmc_etr_start is None:
@@ -436,15 +481,16 @@ class QDSSDump():
                 print_out_str('Scatter gather memory type was selected for TMC ETR')
                 self.read_sg_data(dbaddr, sts, rwpval, ram_dump, tmc_etr)
             else:
-                print_out_str('Contiguous memory type was selected for TMC ETR')
-                if (sts & 0x1) == 1:
-                    it1 = range(rwpval, dbaddr+rsz)
-                    it2 = range(dbaddr, rwpval)
-                    tmc_etr.write(ram_dump.read_physical(it1[0], len(it1)))
-                    tmc_etr.write(ram_dump.read_physical(it2[0], len(it2)))
-                else:
-                    it = range(dbaddr, dbaddr+rsz)
-                    tmc_etr.write(ram_dump.read_physical(it[0], len(it)))
+                if self.read_data_iova(dbaddr, rsz, sts, rwpval, ram_dump, tmc_etr) == False:
+                    print_out_str('Contiguous memory type was selected for TMC ETR')
+                    if (sts & 0x1) == 1:
+                        it1 = range(rwpval, dbaddr+rsz)
+                        it2 = range(dbaddr, rwpval)
+                        tmc_etr.write(ram_dump.read_physical(it1[0], len(it1)))
+                        tmc_etr.write(ram_dump.read_physical(it2[0], len(it2)))
+                    else:
+                        it = range(dbaddr, dbaddr+rsz)
+                        tmc_etr.write(ram_dump.read_physical(it[0], len(it)))
         else:
             print_out_str ('!!! ETR was not the current sink!')
 
