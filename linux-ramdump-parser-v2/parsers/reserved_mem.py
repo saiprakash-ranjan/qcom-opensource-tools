@@ -81,7 +81,14 @@ def page_trace(ramdump, pfn):
     phys = pfn << 12
     if phys is None or phys is 0:
         return
-    offset = phys >> 30
+
+    if ramdump.is_config_defined('CONFIG_MEMORY_HOTPLUG'):
+        section_size_bits = int(ramdump.get_config_val(
+                                'CONFIG_HOTPLUG_SIZE_BITS'))
+        offset = phys >> section_size_bits
+    else:
+        offset = phys >> 30
+
     if ramdump.is_config_defined("CONFIG_SPARSEMEM"):
         mem_section_0_offset = (mem_section + (offset * mem_section_size))
         page_ext = ramdump.read_word(
