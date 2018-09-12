@@ -33,17 +33,9 @@ TASK_NAME_LENGTH = 16
 
 
 def do_dump_lsof_info(self, ramdump, lsof_info):
-    task_list_head_offset = ramdump.field_offset('struct task_struct', 'tasks')
-    init_task_address = self.ramdump.address_of('init_task')
-    init_tasklist_head = init_task_address + task_list_head_offset
-    task_list_head = ramdump.read_structure_field(
-                        init_tasklist_head, 'struct list_head', 'next')
-    while task_list_head != init_tasklist_head:
-        task = task_list_head - task_list_head_offset
-        parse_task(self, ramdump, task, lsof_info)
+    for task_struct in ramdump.for_each_process():
+        parse_task(self, ramdump, task_struct, lsof_info)
         lsof_info.write("\n*********************************")
-        task_list_head = ramdump.read_structure_field(
-                        task_list_head, 'struct list_head', 'next')
 
 
 def parse_task(self, ramdump, task, lsof_info):
