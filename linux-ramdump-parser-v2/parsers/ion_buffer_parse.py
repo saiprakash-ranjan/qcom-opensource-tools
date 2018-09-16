@@ -164,41 +164,19 @@ def get_bufs(task, bufs, ion_info, ramdump):
 
 
 def get_proc_bufs(task, bufs, ion_info, ramdump):
-    group_offset = ramdump.field_offset('struct task_struct', 'thread_group')
-    group_node = ramdump.read_word(task + group_offset)
-    offset_signal = ramdump.field_offset('struct task_struct', 'signal')
     size = 0;
-    curr = None
-    while curr != task:
-        group_node = ramdump.read_pointer(group_node)
-        curr = group_node - group_offset
-        signal_struct = ramdump.read_word(curr + offset_signal)
-        if signal_struct == 0 or signal_struct is None:
-            break
+    for curr in ramdump.for_each_thread(task):
         size += get_bufs(curr, bufs, ion_info, ramdump)
     return size
 
 
 def ion_proc_info(self, ramdump, ion_info):
     ion_info = ramdump.open_file('ionproc.txt')
-    init_task = ramdump.address_of('init_task')
-    if init_task is None:
-        ion_info.write("NOTE: 'init_task' not found for process information")
-        return
     ion_info.write("*****Parsing dma proc info for ion leak debugging*****\n")
-    node_offset = ramdump.field_offset('struct task_struct', 'tasks')
-    offset_signal = ramdump.field_offset('struct task_struct', 'signal')
-    list_node = ramdump.read_word(init_task + node_offset)
-    task = None
     pid_offset = ramdump.field_offset('struct task_struct', 'tgid')
     comm_offset = ramdump.field_offset('struct task_struct', 'comm')
     dma_procs = []
-    while (task != init_task):
-        list_node = ramdump.read_pointer(list_node)
-        task = list_node - node_offset
-        signal_struct = ramdump.read_word(task + offset_signal)
-        if signal_struct == 0 or signal_struct is None:
-            break
+    for task in ramdump.for_each_process():
         bufs = []
         size = get_proc_bufs(task, bufs, ion_info, ramdump)
         if (size == 0):
