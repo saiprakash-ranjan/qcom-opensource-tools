@@ -64,18 +64,24 @@ def ion_buffer_info(self, ramdump, ion_info):
     file_offset = ramdump.field_offset('struct dma_buf', 'file')
     name_offset = ramdump.field_offset('struct dma_buf', 'name')
     exp_name_offset = ramdump.field_offset('struct dma_buf', 'exp_name')
-    ion_info.write("{0:40} {1:15} {2:10} {3:20}\n".format(
-                'File_addr', 'Name', 'Size', 'Size in KB'))
+    ion_info.write("{0:40} {1:15} {2:10} {3:10} {4:10} {5:20}\n".format(
+                'File_addr', 'Name', 'Size', 'Exp', 'Heap', 'Size in KB'))
     dma_buf_info = []
     while (head != db_list):
         dma_buf_addr = head - list_node_offset
         size = ramdump.read_word(dma_buf_addr + size_offset)
         file = ramdump.read_word(dma_buf_addr + file_offset)
         exp_name = ramdump.read_word(dma_buf_addr + exp_name_offset)
+        exp_name = ramdump.read_cstring(exp_name, 48)
+        ionheap_name = ""
+        if exp_name == 'ion':
+            ion_buffer = ramdump.read_structure_field(dma_buf_addr, 'struct dma_buf', 'priv')
+            ion_heap = ramdump.read_structure_field(ion_buffer, 'struct ion_buffer', 'heap')
+            ionheap_name_addr = ramdump.read_structure_field(ion_heap, 'struct ion_heap', 'name')
+            ionheap_name = ramdump.read_cstring(ionheap_name_addr, TASK_NAME_LENGTH)
         name = ramdump.read_word(dma_buf_addr + name_offset)
         name = ramdump.read_cstring(name, 48)
-        exp_name = ramdump.read_cstring(exp_name, 48)
-        dma_buf_info.append([file, name, hex(size), bytes_to_KB(size)])
+        dma_buf_info.append([file, name, hex(size), exp_name, ionheap_name, bytes_to_KB(size)])
         head = ramdump.read_word(head)
         next_node = ramdump.read_word(head + next_offset)
         if next_node == 0:
@@ -87,20 +93,26 @@ def ion_buffer_info(self, ramdump, ion_info):
                 size = ramdump.read_word(dma_buf_addr + size_offset)
                 file = ramdump.read_word(dma_buf_addr + file_offset)
                 exp_name = ramdump.read_word(dma_buf_addr + exp_name_offset)
+                exp_name = ramdump.read_cstring(exp_name, 48)
+                ionheap_name = ""
+                if exp_name == 'ion':
+                    ion_buffer = ramdump.read_structure_field(dma_buf_addr, 'struct dma_buf', 'priv')
+                    ion_heap = ramdump.read_structure_field(ion_buffer, 'struct ion_buffer', 'heap')
+                    ionheap_name_addr = ramdump.read_structure_field(ion_heap, 'struct ion_heap', 'name')
+                    ionheap_name = ramdump.read_cstring(ionheap_name_addr, TASK_NAME_LENGTH)
                 name = ramdump.read_word(dma_buf_addr + name_offset)
                 name = ramdump.read_cstring(name, 48)
-                exp_name = ramdump.read_cstring(exp_name, 48)
-                dma_buf_info.append([file, name, hex(size), bytes_to_KB(size)])
+                dma_buf_info.append([file, name, hex(size), exp_name, ionheap_name, bytes_to_KB(size)])
                 head = ramdump.read_word(head + prev_offset)
                 prev_node = ramdump.read_word(head + prev_offset)
                 if prev_node == 0:
                     break
             break
 
-    dma_buf_info = sorted(dma_buf_info, key=lambda l: l[3], reverse=True)
+    dma_buf_info = sorted(dma_buf_info, key=lambda l: l[5], reverse=True)
     for item in dma_buf_info:
-        str = "v.v (struct file *)0x{0:x}\t {1:15} {2:10} ({3} KB)\n".\
-                    format(item[0], item[1], item[2], item[3])
+        str = "v.v (struct file *)0x{0:x}\t {1:15} {2:10} {3:10} {4:10} ({5} KB)\n".\
+                    format(item[0], item[1], item[2], item[3], item[4], item[5] )
         ion_info.write(str)
 
 
