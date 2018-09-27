@@ -1686,6 +1686,130 @@ class RamDump():
         else:
             return self.thread_saved_field_common_32(task, self.field_offset('struct cpu_context_save', 'fp'))
 
+    def for_each_process(self):
+        """ create a generator for traversing through each valid process"""
+        init_task = self.address_of('init_task')
+        tasks_offset = self.field_offset('struct task_struct', 'tasks')
+        prev_offset = self.field_offset('struct list_head', 'prev')
+        next = init_task
+        seen_tasks = []
+
+        while (1):
+            task_pointer = self.read_word(next + tasks_offset, True)
+            if not task_pointer:
+                break
+
+            task_struct = task_pointer - tasks_offset
+            if ((self.validate_task_struct(task_struct) == -1) or (
+                    self.validate_sched_class(task_struct) == -1)):
+                next = init_task
+                while (1):
+                    task_pointer = self.read_word(next + tasks_offset +
+                                                  prev_offset, True)
+
+                    if not task_pointer:
+                        break
+                    task_struct = task_pointer - tasks_offset
+                    if (self.validate_task_struct(task_struct) == -1):
+                        break
+                    if (self.validate_sched_class(task_struct) == -1):
+                        break
+                    if task_struct in seen_tasks:
+                        break
+
+                    yield task_struct
+                    seen_tasks.append(task_struct)
+                    next = task_struct
+                    if (next == init_task):
+                        break
+                break
+
+            if task_struct in seen_tasks:
+                break
+            yield task_struct
+            seen_tasks.append(task_struct)
+            next = task_struct
+            if (next == init_task):
+                break
+
+    def for_each_thread(self, task_addr):
+        thread_group_offset = self.field_offset(
+                            'struct task_struct', 'thread_group')
+        thread_group_pointer = self.read_word(
+                                task_addr + thread_group_offset, True)
+        prev_offset = self.field_offset('struct list_head', 'prev')
+
+        thread_group_pointer = thread_group_pointer - thread_group_offset
+
+        next = thread_group_pointer
+        seen_thread = []
+
+        while(1):
+            task_offset = next + thread_group_offset
+            task_pointer = self.read_word(task_offset, True)
+            if not task_pointer:
+                break
+
+            task_struct = task_pointer - thread_group_offset
+            if (self.validate_task_struct(task_struct) == -1) or (
+                    self.validate_sched_class(task_struct) == -1):
+                    next = thread_group_pointer
+                    while (1):
+                        task_pointer = self.read_word(next +
+                                                      thread_group_offset +
+                                                      prev_offset)
+
+                        if not task_pointer:
+                            break
+                        task_struct = task_pointer - thread_group_offset
+                        if (self.validate_task_struct(task_struct) == -1) or (
+                                self.validate_sched_class(task_struct) == -1):
+                                break
+
+                        yield task_struct
+                        seen_thread.append(task_struct)
+                        next = task_struct
+                        if (next == thread_group_pointer):
+                            break
+                    break
+
+            if task_struct in seen_thread:
+                break
+
+            yield task_struct
+            seen_thread.append(task_struct)
+            next = task_struct
+            if (next == thread_group_pointer):
+                break
+
+    def validate_task_struct(self, task):
+        thread_info_address = self.get_thread_info_addr(task)
+        if self.is_thread_info_in_task():
+            task_struct = task
+        else:
+            task_address = thread_info_address + self.field_offset(
+                                    'struct thread_info', 'task')
+            task_struct = self.read_word(task_address, True)
+
+        cpu_number = self.get_task_cpu(task_struct, thread_info_address)
+        if ((task != task_struct) or (thread_info_address == 0x0)):
+            return -1
+        if ((cpu_number < 0) or (cpu_number > self.get_num_cpus())):
+            return -1
+
+    def validate_sched_class(self, task):
+        sc_top = self.address_of('stop_sched_class')
+        sc_rt = self.address_of('rt_sched_class')
+        sc_idle = self.address_of('idle_sched_class')
+        sc_fair = self.address_of('fair_sched_class')
+
+        sched_class = self.read_structure_field(
+                                task, 'struct task_struct', 'sched_class')
+
+        if not ((sched_class == sc_top) or (sched_class == sc_rt) or (
+                sched_class == sc_idle) or (sched_class == sc_fair)):
+            return -1
+
 
 class Struct(object):
     """
