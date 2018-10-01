@@ -860,6 +860,8 @@ boards.append(BoardSDX20(socid=333))
 
 boards.append(BoardSteppe(socid=355))
 boards.append(BoardSteppe(socid=369))
+boards.append(BoardSteppe(socid=365))
+boards.append(BoardSteppe(socid=366))
 
 boards.append(BoardSDM710(socid=336))
 boards.append(BoardSDM710(socid=337))
