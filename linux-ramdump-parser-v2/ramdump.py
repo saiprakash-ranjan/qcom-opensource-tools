@@ -701,7 +701,7 @@ class RamDump():
                 '!!! This is a BUG in the parser and should be reported.')
             sys.exit(1)
 
-        if not self.get_version():
+        if not self.get_matched_version():
             print_out_str('!!! Could not get the Linux version!')
             print_out_str(
                 '!!! Your vmlinux is probably wrong for these dumps')
@@ -814,11 +814,16 @@ class RamDump():
                 else:
                     return addr - (self.kimage_voffset)
 
-    def get_version(self):
+    def get_matched_version(self):
         banner_addr = self.address_of('linux_banner')
         if banner_addr is not None:
             banner_addr = self.kernel_virt_to_phys(banner_addr)
-            b = self.read_cstring(banner_addr, 256, False)
+            vm_v = self.gdbmi.get_value_of_string('linux_banner')
+            if vm_v is None:
+                print_out_str('!!! Could not read banner address from vmlinux!')
+                return False
+            banner_len = len(vm_v)
+            b = self.read_cstring(banner_addr, banner_len, False)
             if b is None:
                 print_out_str('!!! Could not read banner address!')
                 return False
@@ -835,10 +840,6 @@ class RamDump():
 
             print_out_str('Linux Banner: ' + b.rstrip())
             print_out_str('version = {0}'.format(self.version))
-            vm_v = self.gdbmi.get_value_of_string('linux_banner')
-            if vm_v is None:
-                print_out_str('!!! Could not read banner address from vmlinux!')
-                return False
             if str(vm_v) in str(b):
                 print_out_str("Linux banner from vmlinux = %s" % vm_v)
                 print_out_str("Linux banner from dump = %s" % b)
