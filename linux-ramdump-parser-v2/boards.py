@@ -427,6 +427,7 @@ class Board8917(Board):
         self.smem_addr = 0x6300000
         self.phys_offset = 0x40000000
         self.imem_start = 0x8600000
+        self.kaslr_addr = 0x86006d0
         self.wdog_addr = 0x8600658
         self.imem_file_name = 'OCIMEM.BIN'
 
@@ -838,6 +839,7 @@ boards.append(Board8917(socid=303))
 boards.append(Board8917(socid=307))
 boards.append(Board8917(socid=308))
 boards.append(Board8917(socid=309))
+boards.append(Board8917(socid=386))
 
 boards.append(Board8920(socid=320))
 
