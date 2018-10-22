@@ -941,8 +941,8 @@ def get_wdog_timing(ramdump):
         if jiffies > pet_timer_expires:
             print_out_str('Current jiffies crossed pet_timer expires jiffies')
 
-    print_out_str('CPU online bits: {0:b}'.format(cpu_online_bits))
-    print_out_str('CPU isolated bits: {0:b}'.format(cpu_isolated_bits))
+    print_out_str('CPU online bits: {0:08b}'.format(cpu_online_bits))
+    print_out_str('CPU isolated bits: {0:08b}'.format(cpu_isolated_bits))
     print_out_str('pet_timer_expires: {0}'.format(pet_timer_expires))
     print_out_str('Current jiffies  : {0}'.format(jiffies))
     print_out_str(
@@ -969,3 +969,23 @@ def get_wdog_timing(ramdump):
     epoch_ns = ramdump.read_word('cd.read_data[0].epoch_ns')
     epoch_cyc = ramdump.read_word('cd.read_data[0].epoch_cyc')
     print_out_str('epoch_ns: {0}ns  epoch_cyc: {1}'.format(epoch_ns,epoch_cyc))
+    if (ramdump.kernel_version >= (4, 14)):
+        ping_start_time_offset = ramdump.field_offset(
+                        'struct msm_watchdog_data', 'ping_start')
+        ping_end_time_offset = ramdump.field_offset(
+                        'struct msm_watchdog_data', 'ping_end')
+        for i in range(0, ramdump.get_num_cpus()):
+            ping_start_time = ramdump.read_word(wdog_data_addr +
+                                                 ping_start_time_offset + i*8)
+            ping_end_time = ramdump.read_word(wdog_data_addr +
+                                                 ping_end_time_offset + i*8)
+            print_out_str("CPU#{0} : ping_start: {1:.6f} : ping_end: {2:.6f}"
+                          .format(i, ns_to_sec(ping_start_time),
+                                  ns_to_sec(ping_end_time)))
+        timer_fired = ramdump.read_structure_field(
+            wdog_data_addr, 'struct msm_watchdog_data', 'timer_fired')
+        print_out_str('timer_fired : {0:.6f}'.format(ns_to_sec(timer_fired)))
+        thread_start = ramdump.read_structure_field(
+            wdog_data_addr, 'struct msm_watchdog_data', 'thread_start')
+        print_out_str('thread_start : {0:.6f}'.format(ns_to_sec(
+            thread_start)))

@@ -34,22 +34,11 @@ def do_dump_process_memory(ramdump):
 
     total_slab = slab_rec + slab_unrec
     total_mem = ramdump.read_word('totalram_pages') * 4
-    offset_tasks = ramdump.field_offset('struct task_struct', 'tasks')
     offset_comm = ramdump.field_offset('struct task_struct', 'comm')
     offset_signal = ramdump.field_offset('struct task_struct', 'signal')
-    prev_offset = ramdump.field_offset('struct list_head','prev')
     offset_adj = ramdump.field_offset('struct signal_struct', 'oom_score_adj')
-    offset_thread_group = ramdump.field_offset(
-        'struct task_struct', 'thread_group')
     offset_pid = ramdump.field_offset('struct task_struct', 'pid')
-    init_addr = ramdump.address_of('init_task')
-    init_next_task = init_addr + offset_tasks
-    orig_init_next_task = init_next_task
-    init_thread_group = init_addr + offset_thread_group
-    seen_tasks = set()
     task_info = []
-    offset_thread_group = ramdump.field_offset(
-        'struct task_struct', 'thread_group')
     memory_file = ramdump.open_file('memory.txt')
     memory_file.write('Total RAM: {0:,}kB\n'.format(total_mem))
     memory_file.write('Total free memory: {0:,}kB({1:.1f}%)\n'.format(
@@ -62,78 +51,21 @@ def do_dump_process_memory(ramdump):
             total_slab * 4, (100.0 * total_slab * 4) / total_mem))
     memory_file.write('Total SHMEM: {0:,}kB({1:.1f}%)\n\n'.format(
         total_shmem * 4, (100.0 * total_shmem * 4) / total_mem))
-    while True:
-        task_struct = init_thread_group - offset_thread_group
-        next_thread_comm = task_struct + offset_comm
+
+    for task in ramdump.for_each_process():
+        next_thread_comm = task + offset_comm
         thread_task_name = cleanupString(
             ramdump.read_cstring(next_thread_comm, 16))
-        next_thread_pid = task_struct + offset_pid
+        next_thread_pid = task + offset_pid
         thread_task_pid = ramdump.read_int(next_thread_pid)
-        signal_struct = ramdump.read_word(task_struct + offset_signal)
-
-        next_task = ramdump.read_word(init_next_task)
-        if next_task is None:
-            init_next_task = init_addr + offset_tasks
-            init_next_task = init_next_task + prev_offset
-            init_next_task = ramdump.read_word(init_next_task)
-            init_thread_group = init_next_task - offset_tasks \
-                                + offset_thread_group
-            while True:
-                init_next_task = init_next_task + prev_offset
-                orig_init_next_task = init_next_task
-                task_struct = init_thread_group - offset_thread_group
-                next_thread_comm = task_struct + offset_comm
-                thread_task_name = cleanupString(
-                    ramdump.read_cstring(next_thread_comm, 16))
-                next_thread_pid = task_struct + offset_pid
-                thread_task_pid = ramdump.read_int(next_thread_pid)
-                signal_struct = ramdump.read_word(task_struct + offset_signal)
-                next_task = ramdump.read_word(init_next_task)
-                if next_task is None:
-                    break
-                if (next_task == init_next_task and
-                            next_task != orig_init_next_task):
-                    break
-                if next_task in seen_tasks:
-                    break
-                seen_tasks.add(next_task)
-                init_next_task = next_task
-                init_thread_group = init_next_task - offset_tasks\
-                                    + offset_thread_group
-                if init_next_task == orig_init_next_task:
-                    break
-
-                if signal_struct == 0 or signal_struct is None:
-                    continue
-                adj = ramdump.read_u16(signal_struct + offset_adj)
-                if adj & 0x8000:
-                    adj = adj - 0x10000
-                rss, swap = get_rss(ramdump, task_struct)
-                if rss != 0:
-                    task_info.append([thread_task_name, thread_task_pid, rss,
-                                      swap, rss + swap, adj])
-            break
-
-        if (next_task == init_next_task and
-                next_task != orig_init_next_task):
-            break
-
-        if next_task in seen_tasks:
-            break
-
-        seen_tasks.add(next_task)
-        init_next_task = next_task
-        init_thread_group = init_next_task - offset_tasks + offset_thread_group
-        if init_next_task == orig_init_next_task:
-            break
-
+        signal_struct = ramdump.read_word(task + offset_signal)
         if signal_struct == 0 or signal_struct is None:
             continue
 
         adj = ramdump.read_u16(signal_struct + offset_adj)
         if adj & 0x8000:
             adj = adj - 0x10000
-        rss, swap = get_rss(ramdump, task_struct)
+        rss, swap = get_rss(ramdump, task)
         if rss != 0:
             task_info.append([thread_task_name, thread_task_pid, rss, swap, rss + swap, adj])
 
