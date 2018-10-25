@@ -222,6 +222,11 @@ class MemStats(RamParser):
         # vmalloc area
         self.calculate_vmalloc()
 
+        accounted_mem = total_free + total_slab + ion_mem + kgsl_memory + \
+                        self.vmalloc_size + other_mem
+
+        unaccounted_mem = total_mem - accounted_mem
+
         # Output prints
         out_mem_stat.write('{0:30}: {1:8} MB'.format(
                                 "Total RAM", total_mem))
@@ -241,6 +246,8 @@ class MemStats(RamParser):
                             "Others  ", other_mem))
         out_mem_stat.write('\n{0:30}: {1:8} MB'.format(
                             "Cached  ",cached))
+        out_mem_stat.write('\n\n{0:30}: {1:8} MB'.format(
+                            "Total Unaccounted Memory ",unaccounted_mem))
 
     def parse(self):
         with self.ramdump.open_file('mem_stat.txt') as out_mem_stat:
