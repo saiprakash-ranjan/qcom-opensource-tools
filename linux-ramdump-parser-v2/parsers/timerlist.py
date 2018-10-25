@@ -66,8 +66,11 @@ class TimerList(RamParser) :
             timer_list_offset = self.ramdump.field_offset('struct delayed_work', 'timer')
             work_addr = node - timer_list_offset
             func_addr = work_addr + self.ramdump.field_offset('struct work_struct', 'func')
-            work_func = self.ramdump.unwind_lookup(self.ramdump.read_word(func_addr))[0]
-            data += " / " + work_func
+            try:
+                work_func = self.ramdump.unwind_lookup(self.ramdump.read_word(func_addr))[0]
+                data += " / " + work_func
+            except TypeError:
+                data += " / " + hex(self.ramdump.read_word(func_addr)) + "<MODULE>"
 
         if not self.timer_42:
             timer_base_addr = node + self.ramdump.field_offset(
