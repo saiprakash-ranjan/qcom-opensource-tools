@@ -543,6 +543,7 @@ class RamDump():
         self.autodump = options.autodump
         self.module_table = module_table.module_table_class()
         self.module_table.setup_sym_path(options.sym_path)
+        self.currentEL = options.currentEL or None
         if self.minidump:
             try:
                 mod = import_module('elftools.elf.elffile')
