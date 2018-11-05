@@ -35,6 +35,8 @@ LL_SH_BITS = (0x3 << 8)
 ATTR_IDX_NONCACHED = 0x0
 ATTR_IDX_CACHE = 0x1
 ATTR_IDX_DEV = 0x2
+ATTR_IDX_UPST = 0x3
+ATTR_IDX_LLC_NWA = 0x4
 
 SH_NON_SHARE = (0x0 << 8)
 SH_RESERVED = (0x1 << 8)
@@ -87,7 +89,7 @@ def add_collapsed_mapping(mappings, first, last):
                virt_start = virt_start,
                virt_end = last.virt + last.map_size,
                phys_start = first.phys,
-               phys_end = last.phys + last.map_size,
+               phys_end = (last.phys & 0xFFFFFFFFF000) + last.map_size,
                map_type = first.type,
                map_size = first.map_size,
                attr_indx_str = first.attr_indx_str,
@@ -168,10 +170,14 @@ def add_flat_mapping(mappings, fl_idx, sl_idx, tl_idx, ll_idx, phy_addr,
     if attr_indx != -1:
         if attr_indx == ATTR_IDX_NONCACHED:
             attr_indx_str = 'Non-Cached'
-        if attr_indx == ATTR_IDX_CACHE:
+        elif attr_indx == ATTR_IDX_CACHE:
             attr_indx_str = 'Cached'
-        if attr_indx == ATTR_IDX_DEV:
+        elif attr_indx == ATTR_IDX_DEV:
             attr_indx_str = 'Device'
+        elif attr_indx == ATTR_IDX_UPST:
+            attr_indx_str = 'UPSTREAM'
+        elif attr_indx == ATTR_IDX_LLC_NWA:
+            attr_indx_str = 'LLC_NWA'
 
     if xn_bit == 1:
         execute_never_str = 'True'
@@ -201,7 +207,7 @@ def get_super_section_mapping_info(ramdump, pg_table, index):
 
     if phy_addr is not None:
         current_map_type = phy_addr & LL_AP_BITS
-        current_phy_addr = phy_addr & 0xFFFFC0000000
+        current_phy_addr = phy_addr & 0xFFFFC0000FFF
     else:
         status = False
 
@@ -231,12 +237,12 @@ def get_section_mapping_info(ramdump, pg_table, index):
             xn_bit = 1
 
         if phy_addr & LL_CH:
-            current_phy_addr = phy_addr & 0xFFFFFE000000
+            current_phy_addr = phy_addr & 0xFFFFFE000FFF
             current_page_size = SZ_32M
             section_skip_count = 15
             # Current + next 15 entries are contiguous
         else:
-            current_phy_addr = phy_addr & 0xFFFFFFE00000
+            current_phy_addr = phy_addr & 0xFFFFFFE00FFF
             current_page_size = SZ_2M
 
     return (current_phy_addr, current_page_size, current_map_type,
@@ -259,7 +265,7 @@ def get_mapping_info(ramdump, pg_table, index):
         current_map_type = phy_addr & LL_AP_BITS
 
         if phy_addr & LL_TYPE_PAGE:
-            current_phy_addr = phy_addr & 0xFFFFFFFFF000
+            current_phy_addr = phy_addr & 0xFFFFFFFFFFFF
             attr_indx = ( (phy_addr & LL_ATTR_INDX) >> 2 )
             if attr_indx == ATTR_IDX_NONCACHED or attr_indx == ATTR_IDX_CACHE:
                 sh_bits = phy_addr & LL_SH_BITS   # Shareability info available
@@ -269,7 +275,7 @@ def get_mapping_info(ramdump, pg_table, index):
                 xn_bit = 1
 
             if phy_addr & LL_CH:
-                current_phy_addr = phy_addr & 0xFFFFFFFF0000
+                current_phy_addr = phy_addr & 0xFFFFFFFF0FFF
                 current_page_size = SZ_64K
                 skip_count = 15
                 # Current + next 15 entries are contiguous
@@ -463,4 +469,4 @@ def parse_aarch64_tables(ramdump, d, domain_num):
                     outfile.write(
                         '0x%x--0x%x [0x%x] [UNMAPPED]\n' %
                         (mapping.virt_start, mapping.virt_end,
-                         mapping.virt_end - mapping.virt_start))
+                         mapping.virt_end - mapping.virt_start + 1))
