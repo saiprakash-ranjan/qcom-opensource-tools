@@ -1087,6 +1087,7 @@ lookuptable[("steppe", 0x66, 0x14)] = L1_ICache_KRYO4XX_GOLD()
 lookuptable[("steppe", 0x67, 0x14)] = L1_ICache_KRYO4XX_GOLD()
 
 lookuptable[("steppe", 0x140, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
+lookuptable[("steppe", 0x141, 0x10)] = LLC_SYSTEM_CACHE_KRYO3XX()
 
 lookuptable[("steppe", 0xc6, 0x10)] = L2_Cache_KRYO4XX_GOLD(numsets=0x200)
 lookuptable[("steppe", 0xc7, 0x10)] = L2_Cache_KRYO4XX_GOLD(numsets=0x200)
