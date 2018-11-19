@@ -138,7 +138,7 @@ class Slabinfo_summary(RamParser):
                     num_slabs, slab_size]
             nCounter += 1
         sorted_summary = sorted(slab_summary.values(),
-                                key=operator.itemgetter(4), reverse=True)
+                                key=operator.itemgetter(5), reverse=True)
         for val in sorted_summary:
             slab_out.write(format_string.format(
                                 val[0], val[1], val[2], val[3], val[4],
