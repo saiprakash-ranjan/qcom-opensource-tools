@@ -502,6 +502,20 @@ class BoardSDM710(Board):
         self.wdog_addr = 0x146BF658
         self.imem_file_name = 'OCIMEM.BIN'
 
+class BoardTrinket(Board):
+    def __init__(self, socid):
+        super(BoardTrinket, self).__init__()
+        self.socid = socid
+        self.board_num = "trinket"
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x20000000
+        self.smem_addr = 0x6000000
+        self.phys_offset = 0x20000000
+        self.imem_start = 0x0c100000
+        self.kaslr_addr = 0x0c1256d0
+        self.wdog_addr = 0x0c125658
+        self.imem_file_name = 'OCIMEM.BIN'
+
 class BoardQCS605(Board):
     def __init__(self, socid):
         super(BoardQCS605, self).__init__()
@@ -872,6 +886,8 @@ boards.append(BoardSDM710(socid=360))
 boards.append(BoardQCS605(socid=347))
 boards.append(BoardQCS405(socid=352))
 boards.append(BoardQCS403(socid=373))
+
+boards.append(BoardTrinket(socid=394))
 
 boards.append(BoardPoorwills(socid=334))
 boards.append(BoardPoorwills(socid=335))
