@@ -120,6 +120,8 @@ if __name__ == '__main__':
     parser.add_option(
         '', '--force-version', type='int', dest='force_hardware_version',
         help='Force the hardware detection to a specific hardware version')
+    parser.add_option('-l', '--kernel-exception-level', type='int',
+                      dest='currentEL', help='Current exception level for kernel')
     parser.add_option('', '--parse-qdss', action='store_true',
                       dest='qdss', help='Parse QDSS (deprecated)')
     parser.add_option('', '--shell', action='store_true',

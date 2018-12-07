@@ -775,6 +775,16 @@ lookuptable[("qcs605", 0x125, 0x14)] = L2_TLB_KRYO3XX_SILVER()
 lookuptable[("qcs605", 0x126, 0x14)] = L2_TLB_KRYO3XX_GOLD()
 lookuptable[("qcs605", 0x127, 0x14)] = L2_TLB_KRYO3XX_GOLD()
 
+# "trinket"
+lookuptable[("trinket", 0x20, 0x14)] = L1_TLB_A53()
+lookuptable[("trinket", 0x21, 0x14)] = L1_TLB_A53()
+lookuptable[("trinket", 0x22, 0x14)] = L1_TLB_A53()
+lookuptable[("trinket", 0x23, 0x14)] = L1_TLB_A53()
+lookuptable[("trinket", 0x24, 0x14)] = L1_TLB_KRYO2XX_GOLD()
+lookuptable[("trinket", 0x25, 0x14)] = L1_TLB_KRYO2XX_GOLD()
+lookuptable[("trinket", 0x26, 0x14)] = L1_TLB_KRYO2XX_GOLD()
+lookuptable[("trinket", 0x27, 0x14)] = L1_TLB_KRYO2XX_GOLD()
+
 # "msm8998"
 lookuptable[("8998", 0x20, 0x14)] = L1_TLB_A53()
 lookuptable[("8998", 0x21, 0x14)] = L1_TLB_A53()

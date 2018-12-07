@@ -543,6 +543,7 @@ class RamDump():
         self.autodump = options.autodump
         self.module_table = module_table.module_table_class()
         self.module_table.setup_sym_path(options.sym_path)
+        self.currentEL = options.currentEL or None
         if self.minidump:
             try:
                 mod = import_module('elftools.elf.elffile')
@@ -627,11 +628,14 @@ class RamDump():
             modules_vsize
         self.kimage_vaddr = self.kimage_vaddr + self.get_kaslr_offset()
         self.modules_end = self.page_offset
-        self.kimage_voffset = self.address_of("kimage_voffset")
-        if self.kimage_voffset is not None:
-            self.kimage_voffset = self.kimage_vaddr - self.phys_offset
-            self.modules_end = self.kimage_vaddr
-            print_out_str("The kimage_voffset extracted is: {:x}".format(self.kimage_voffset))
+        if self.arm64:
+            self.kimage_voffset = self.address_of("kimage_voffset")
+            if self.kimage_voffset is not None:
+                self.kimage_voffset = self.kimage_vaddr - self.phys_offset
+                self.modules_end = self.kimage_vaddr
+                print_out_str("The kimage_voffset extracted is: {:x}".format(self.kimage_voffset))
+        else:
+            self.kimage_voffset = None
 
         # The address of swapper_pg_dir can be used to determine
         # whether or not we're running with LPAE enabled since an

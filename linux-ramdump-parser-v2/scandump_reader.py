@@ -1,4 +1,4 @@
-# Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -243,7 +243,10 @@ class Scandump_v2():
         pc = self.regs['pc']
         if ram_dump.arm64:
             lr = self.regs['x30']
-            bt = self.regs['sp_el1']
+            if ram_dump.currentEL == 0x2:
+                bt = self.regs['sp_el2']
+            else:
+                bt = self.regs['sp_el1']
             fp = self.regs['x29']
         else:
             lr = self.regs['r14_svc']
