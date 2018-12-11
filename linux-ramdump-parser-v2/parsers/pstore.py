@@ -12,31 +12,82 @@
 from parser_util import cleanupString
 from parser_util import register_parser, RamParser
 from print_out import print_out_str
+import re
+import collections
 
 @register_parser('--pstore', 'Extract event logs from pstore')
 class PStore(RamParser):
 
     def calculate_percpu_eventbuf_size(self, base_addr):
-        event_zone_addr = self.ramdump.read_u64(base_addr +
-                          (self.ramdump.field_offset('struct ramoops_context', 'eprzs')))
-        event_zone_addr = self.ramdump.read_u64(event_zone_addr)
-        start_addr = self.ramdump.read_u32(event_zone_addr +
-                     (self.ramdump.field_offset('struct persistent_ram_zone', 'paddr')))
-        percpu_size = self.ramdump.read_u32(event_zone_addr +
-                      (self.ramdump.field_offset('struct persistent_ram_zone', 'size')))
+        try:
+            event_zone_addr = self.ramdump.read_u64(base_addr +
+                              self.ramdump.field_offset('struct ramoops_context', 'eprzs'))
+            event_zone_addr = self.ramdump.read_u64(event_zone_addr)
+            start_addr = self.ramdump.read_u32(event_zone_addr +
+                         self.ramdump.field_offset('struct persistent_ram_zone', 'paddr'))
+            percpu_size = self.ramdump.read_u32(event_zone_addr +
+                          self.ramdump.field_offset('struct persistent_ram_zone', 'size'))
+        except:
+            return None, None
         return start_addr, percpu_size
 
-    def print_pstore(self, pstore_out, addr, size):
+    def print_console_logs(self, pstore_out, addr, size):
         pstore = self.ramdump.read_physical(addr, size)
         pstore_out.write(cleanupString(pstore.decode('ascii', 'ignore')) + '\n')
 
+    def sort_event_data(self, event_data, pstore_out):
+        '''
+        Event log buffer is circular, so this function
+        sorts the logs in ascending timestamp manner
+        '''
+        ordered_event_data = collections.OrderedDict(sorted(event_data.items()))
+        for ts, log in ordered_event_data.iteritems():
+            pstore_out.write(log)
+
+    def print_event_logs(self, pstore_out, addr, size):
+        '''
+        This function tries to format the event logs before logging them to
+        the core specific rtb file. Raw Data will be in the format given below
+        io_read: type=readl cpu=1 ts:58270610802 data=0xffffff8009de8614
+                 caller=qcom_geni_serial_start_tx+0x114/0x150
+        io_write: type=writel cpu=1 ts:58270618875 data=0xffffff8009de880c
+                 caller=qcom_geni_serial_start_tx+0x130/0x150
+
+        Timestamp is extracted from raw data and converted to secs format and cpu
+        field is removed since it is redundant.
+
+        Final Formatting will be as shown below
+        [644.279442] io_write : writel from address 0xffffff8009673120(None) called
+                     from qcom_cpufreq_hw_target_index+0x60/0x64
+        '''
+        pstore = self.ramdump.read_physical(addr, size)
+        event_log_data = cleanupString(pstore.decode('ascii', 'ignore'))
+        event_data = event_log_data.split('\n')
+        formatted_event_data = {}
+        for line in event_data:
+            expr = r'.*(io_.*):.*type=(.*)cpu=(.*)ts:(.*)data=(.*)caller=(.*).*'
+            regEx = re.search(expr, line)
+            if regEx:
+                event_type = regEx.group(2).strip()
+                timestamp = regEx.group(4).strip()
+                timestamp = round(float(timestamp)/10**9,9)
+                timestamp = format(timestamp,'.9f')
+                data = regEx.group(5).strip()
+                caller = regEx.group(6).strip()
+                log_string = "[{0}] {1} : {2} from address {3} called from {4}\n".format(timestamp,
+                              regEx.group(1), event_type, data, caller)
+                formatted_event_data[timestamp] = log_string
+            else:
+                continue
+        self.sort_event_data(formatted_event_data, pstore_out)
+
     def calculate_console_size(self, base_addr):
         console_zone_addr = self.ramdump.read_u64(base_addr +
-                            (self.ramdump.field_offset('struct ramoops_context', 'cprz')))
+                            self.ramdump.field_offset('struct ramoops_context', 'cprz'))
         start_addr = self.ramdump.read_u32(console_zone_addr +
-                     (self.ramdump.field_offset('struct persistent_ram_zone', 'paddr')))
+                     self.ramdump.field_offset('struct persistent_ram_zone', 'paddr'))
         console_size = self.ramdump.read_u32(console_zone_addr +
-                       (self.ramdump.field_offset('struct persistent_ram_zone', 'size')))
+                       self.ramdump.field_offset('struct persistent_ram_zone', 'size'))
         return start_addr, console_size
 
     def extract_console_logs(self, base_addr):
@@ -45,7 +96,7 @@ class PStore(RamParser):
         '''
         start_addr, console_size = self.calculate_console_size(base_addr)
         pstore_out = self.ramdump.open_file('console_logs.txt')
-        self.print_pstore(pstore_out, start_addr, console_size)
+        self.print_console_logs(pstore_out, start_addr, console_size)
         pstore_out.close()
 
     def extract_io_event_logs(self, base_addr):
@@ -55,11 +106,13 @@ class PStore(RamParser):
         files.
         '''
         start_addr, percpu_size = self.calculate_percpu_eventbuf_size(base_addr)
+        if start_addr is None:
+            return
         nr_cpus = self.ramdump.get_num_cpus()
         for cpu in range(0,nr_cpus):
-            pstore_out = self.ramdump.open_file('rtb_core_{}.txt'.format(cpu))
+            pstore_out = self.ramdump.open_file('msm_rtb{0}.txt'.format(cpu))
             cpu_offset = percpu_size*cpu
-            self.print_pstore(pstore_out, start_addr+cpu_offset, percpu_size)
+            self.print_event_logs(pstore_out, start_addr+cpu_offset, percpu_size)
             pstore_out.close()
 
     def parse(self):
