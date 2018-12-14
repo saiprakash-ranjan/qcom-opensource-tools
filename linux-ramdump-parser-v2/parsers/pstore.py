@@ -115,8 +115,27 @@ class PStore(RamParser):
             self.print_event_logs(pstore_out, start_addr+cpu_offset, percpu_size)
             pstore_out.close()
 
+    def print_clockdata_info(self):
+        '''
+        Extracts the epoch data from clock data struct. This helps in converting
+        HLOS timestamps to non-HLOS timestamps and vica-versa. This also
+        additionally logs the Linux Banner for ease in post-processing.
+        '''
+        out_file = self.ramdump.open_file('epoch_info.txt')
+        banner_addr = self.ramdump.address_of('linux_banner')
+        if banner_addr is not None:
+            banner_addr = self.ramdump.kernel_virt_to_phys(banner_addr)
+            vm_v = self.ramdump.gdbmi.get_value_of_string('linux_banner')
+            if vm_v is not None:
+                out_file.write('Linux Banner : {}\n'.format(vm_v))
+        epoch_ns = self.ramdump.read_word('cd.read_data[0].epoch_ns')
+        epoch_cyc = self.ramdump.read_word('cd.read_data[0].epoch_cyc')
+        out_file.write('\nepoch_ns: {0}ns  epoch_cyc: {1}\n'.format(epoch_ns,epoch_cyc))
+        out_file.close()
+
     def parse(self):
         base_addr = self.ramdump.address_of('oops_cxt')
         self.extract_io_event_logs(base_addr)
         self.extract_console_logs(base_addr)
+        self.print_clockdata_info()
 
